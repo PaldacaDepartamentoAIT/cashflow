@@ -22,9 +22,15 @@ body.app-layout {
 .cf-page {
     flex: 1;
     width: 100%;
-    max-width: 1400px;
     margin: 0 auto;
     padding: 1.5rem 1.25rem;
+}
+
+/* Desktop only: mobile/tablet layouts must stay unaffected. */
+@media (max-width: 992px) {
+    .cf-page {
+        max-width: 1400px;
+    }
 }
 
 /* Auth layout */

@@ -279,7 +279,7 @@
             <table class="cf-table cf-table--resizable">
                 <thead>
                     <tr>
-                        <th class="cf-ps-4">
+                        <th class="cf-ps-4 col-date">
                             <a href="?sort={% if sort == 'desc' %}asc{% else %}desc{% endif %}&filter_type={{ filter_type }}&date_from={{ date_from }}&date_to={{ date_to }}&category={{ selected_category }}&search={{ search }}&tx_filter={{ tx_filter }}&status={{ status_filter }}&view_mode={{ view_mode }}&cost_center={{ selected_cost_center|default:'' }}&project={{ selected_project|default:'' }}&account={{ selected_account|default:'' }}" class="cf-text-inherit cf-flex cf-items-center cf-gap-1 ajax-link" style="text-decoration: none; color: inherit;">
                                 Fecha
                                 {% if sort == 'asc' %}
