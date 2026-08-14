@@ -22,11 +22,11 @@ En dev: git merge main  → conserva la config de dev (si es fast-forward, revis
 En main: git merge dev  → conserva la config de producción en main.
 
 --- Producción Docker (VPS Contabo) ---
-  cp .env.example .env   # SECRET_KEY, POSTGRES_PASSWORD, DATABASE_URL, DOMAIN, ALLOWED_HOSTS
+  cp .env.example .env   # SECRET_KEY, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, DATABASE_URL, DOMAIN, ALLOWED_HOSTS
   docker compose up -d --build
   docker compose --profile cron up -d   # tasas BCV 09:00 y 15:00
-  Postgres interno: DATABASE_URL=postgres://USER:PASS@db:5432/DB
-  Postgres externo: comentar servicio db en docker-compose.yml y apuntar DATABASE_URL
+  MySQL interno: DATABASE_URL=mysql://USER:PASS@db:3306/DB
+  MySQL externo: comentar servicio db en docker-compose.yml y apuntar DATABASE_URL
   Coolify: ver DESPLIEGUE-COOLIFY.md (Dockerfile o docker-compose.coolify.yml; no uses el compose con Caddy)
 
 --- Producción (Namecheap / LiteSpeed + Passenger) ---

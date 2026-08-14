@@ -12,6 +12,7 @@ python - <<'PY'
 import os
 import sys
 import time
+from urllib.parse import unquote, urlparse
 
 url = os.environ.get("DATABASE_URL", "").strip()
 if not url:
@@ -21,25 +22,50 @@ attempts = int(os.environ.get("DB_WAIT_ATTEMPTS", "30"))
 delay = float(os.environ.get("DB_WAIT_SECONDS", "2"))
 
 try:
-    import psycopg
+    import pymysql
 except ImportError:
-    print("psycopg no está instalado; se omite la espera de PostgreSQL.", file=sys.stderr)
+    print("PyMySQL no está instalado; se omite la espera de MySQL.", file=sys.stderr)
     sys.exit(0)
+
+parsed = urlparse(url)
+scheme = (parsed.scheme or "").split("+")[0].lower()
+if scheme not in {"mysql", "mysql2"}:
+    print(
+        f"DATABASE_URL debe ser mysql:// (recibido: {parsed.scheme!r}).",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+host = parsed.hostname or "127.0.0.1"
+port = parsed.port or 3306
+user = unquote(parsed.username) if parsed.username else ""
+password = unquote(parsed.password) if parsed.password else ""
+database = unquote(parsed.path.lstrip("/"))
 
 last_error = None
 for attempt in range(1, attempts + 1):
     try:
-        with psycopg.connect(url, connect_timeout=5) as conn:
+        conn = pymysql.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database=database or None,
+            connect_timeout=5,
+        )
+        try:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
-        print(f"PostgreSQL disponible (intento {attempt}).")
+        finally:
+            conn.close()
+        print(f"MySQL disponible (intento {attempt}).")
         sys.exit(0)
     except Exception as exc:
         last_error = exc
-        print(f"Esperando PostgreSQL ({attempt}/{attempts}): {exc}", file=sys.stderr)
+        print(f"Esperando MySQL ({attempt}/{attempts}): {exc}", file=sys.stderr)
         time.sleep(delay)
 
-print(f"No se pudo conectar a PostgreSQL: {last_error}", file=sys.stderr)
+print(f"No se pudo conectar a MySQL: {last_error}", file=sys.stderr)
 sys.exit(1)
 PY
 

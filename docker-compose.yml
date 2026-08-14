@@ -1,29 +1,41 @@
-# Producción en VPS (Contabo): Django + Gunicorn + PostgreSQL + Caddy
+# Producción en VPS (Contabo): Django + Gunicorn + MySQL + Caddy
 #
 # 1) cp .env.example .env  → editar SECRET_KEY, contraseñas, DOMAIN, ALLOWED_HOSTS
 # 2) docker compose up -d --build
 # 3) docker compose exec web python manage.py createsuperuser
 #
-# PostgreSQL no se publica a Internet: Django se conecta con DATABASE_URL
-# en la red interna (host `db`). Para un Postgres externo, comenta el
+# MySQL no se publica a Internet: Django se conecta con DATABASE_URL
+# en la red interna (host `db`). Para un MySQL externo, comenta el
 # servicio `db` y apunta DATABASE_URL a esa instancia.
 
 services:
   db:
-    image: postgres:16-alpine
+    image: mysql:8.4
     restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-cashflow}
-      POSTGRES_USER: ${POSTGRES_USER:-cashflow}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cashflow}
+      MYSQL_USER: ${MYSQL_USER:-cashflow}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Defina MYSQL_PASSWORD en .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Defina MYSQL_ROOT_PASSWORD en .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cashflow} -d ${POSTGRES_DB:-cashflow}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
       interval: 5s
       timeout: 5s
-      retries: 12
-      start_period: 10s
+      retries: 20
+      start_period: 30s
     networks:
       - internal
 
@@ -107,7 +119,7 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  mysql_data:
   app_logs:
   app_static:
   caddy_data:

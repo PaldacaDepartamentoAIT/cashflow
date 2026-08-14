@@ -84,7 +84,7 @@ Severidad: **Crítico** = explotable o compromiso directo; **Alto** = impacto se
 | M6 | `SECURE_SSL_REDIRECT` y HSTS en 0 por defecto en producción | `CashFlow/settings.py` | Activarlos detrás del proxy cuando el dominio tenga HTTPS. |
 | M7 | Posible XSS en listado de enlaces (JS con `innerHTML` y datos del servidor) | plantilla `detalle_proyecto.html` | Escapar o usar `textContent`. |
 | M8 | Superadmin puede elevar o borrar a otros superusers (salvo a sí mismo) | `guardar_usuario`, `eliminar_usuario` | Confirmación extra / no permitir quitar el último superuser. |
-| M9 | Dos caminos de producción (MySQL Namecheap vs Postgres Docker) y dos `requirements*.txt` | `deploy.yml`, `Dockerfile` | Unificar motor o documentar y testear ambos en CI. |
+| M9 | Dos archivos de dependencias (`requirements.txt` vs `requirements-docker.txt`) | `deploy.yml`, `Dockerfile` | Mantener pins alineados en CI. |
 
 ### Bajo
 

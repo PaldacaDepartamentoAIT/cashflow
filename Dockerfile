@@ -10,7 +10,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        libpq-dev \
         libjpeg62-turbo-dev \
         zlib1g-dev \
         libxml2-dev \
@@ -39,7 +38,6 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         gosu \
-        libpq5 \
         libjpeg62-turbo \
         zlib1g \
         libxml2 \

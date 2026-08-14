@@ -46,8 +46,8 @@ Guía cron Namecheap: `logs/CRON.md`.
 
 ## Docker (VPS)
 
-- `Dockerfile`: Python 3.12, Gunicorn en **8081**, usuario no-root, entrypoint con espera de Postgres + migrate + collectstatic.
-- `docker-compose.yml`: `web` + Postgres + Caddy + profile `cron` (BCV).
+- `Dockerfile`: Python 3.12, Gunicorn en **8081**, usuario no-root, entrypoint con espera de MySQL + migrate + collectstatic.
+- `docker-compose.yml`: `web` + MySQL + Caddy + profile `cron` (BCV).
 - `docker-compose.coolify.yml`: solo `web` (el proxy y la BD los pone Coolify).
 - `docker/entrypoint.sh`, `docker/Caddyfile`, `docker/bcv-loop.sh`.
 - Variables: `.env.example` (no commitear `.env`).
@@ -63,13 +63,13 @@ docker compose --profile cron up -d
 
 Paso a paso: [`../DESPLIEGUE-COOLIFY.md`](../DESPLIEGUE-COOLIFY.md).
 
-Resumen: recurso PostgreSQL + aplicación Dockerfile, puerto **8081**, `DATABASE_URL` internal, Scheduled Task para BCV. No desplegar el compose que incluye Caddy.
+Resumen: recurso MySQL + aplicación Dockerfile, puerto **8081**, `DATABASE_URL` internal, Scheduled Task para BCV. No desplegar el compose que incluye Caddy.
 
 ## Namecheap (histórico)
 
 - `passenger_wsgi.py`, `.cpanel.yml`, `build.sh`
 - `.github/workflows/deploy.yml`: push a `main` → SSH, `requirements.txt`, migrate, collectstatic, `tmp/restart.txt`
-- MySQL vía `DB_*`, no Postgres
+- MySQL vía `DB_*` o `DATABASE_URL=mysql://…`
 
 `manage.py` está en la **raíz** del repo, no dentro de `CashFlow/`.
 
@@ -78,4 +78,4 @@ Resumen: recurso PostgreSQL + aplicación Dockerfile, puerto **8081**, `DATABASE
 | Fichero | Destino |
 |---------|---------|
 | `requirements.txt` | Dev + Namecheap (Django, MySQL, pytest, reportlab, …) |
-| `requirements-docker.txt` | Imagen: mismo set de app + gunicorn + psycopg, sin MySQL ni pytest |
+| `requirements-docker.txt` | Imagen: mismo set de app + gunicorn + PyMySQL, sin pytest |

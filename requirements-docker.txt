@@ -1,4 +1,4 @@
-# Dependencias de producción (Docker / VPS). Sin MySQL ni pytest.
+# Dependencias de producción (Docker / VPS). Sin pytest.
 asgiref==3.11.1
 Django==5.2.5
 requests==2.34.2
@@ -32,6 +32,6 @@ pyhanko-certvalidator==0.31.1
 freetype-py==2.5.1
 reportlab==4.5.1
 
-# Runtime Docker / PostgreSQL
+# Runtime Docker / MySQL
 gunicorn==23.0.0
-psycopg[binary]==3.2.9
+PyMySQL==1.1.1

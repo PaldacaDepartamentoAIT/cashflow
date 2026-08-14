@@ -1,8 +1,8 @@
 # Guía de despliegue en Coolify (VPS Contabo)
 
-Paso a paso para publicar **Control de Gastos** en [Coolify](https://coolify.io) sobre un VPS (Contabo u otro). Coolify se encarga del proxy (Traefik o Caddy), HTTPS (Let’s Encrypt) y de PostgreSQL. Django se conecta a la base **solo con `DATABASE_URL`**.
+Paso a paso para publicar **Control de Gastos** en [Coolify](https://coolify.io) sobre un VPS (Contabo u otro). Coolify se encarga del proxy (Traefik o Caddy), HTTPS (Let’s Encrypt) y de MySQL. Django se conecta a la base **solo con `DATABASE_URL`**.
 
-> **No uses** el `docker-compose.yml` de la raíz en Coolify. Ese archivo incluye Caddy y Postgres en el mismo stack y choca con el proxy de Coolify (puertos 80/443).  
+> **No uses** el `docker-compose.yml` de la raíz en Coolify. Ese archivo incluye Caddy y MySQL en el mismo stack y choca con el proxy de Coolify (puertos 80/443).  
 > En Coolify usa el **Dockerfile** (recomendado) o `docker-compose.coolify.yml`.
 
 ---
@@ -79,48 +79,48 @@ timedatectl
 2. Nombre: `control-gastos`.
 3. Entra al entorno **production**.
 
-Todo lo siguiente (Postgres + app) debe vivir **en el mismo proyecto y el mismo entorno**, para compartir red Docker.
+Todo lo siguiente (MySQL + app) debe vivir **en el mismo proyecto y el mismo entorno**, para compartir red Docker.
 ##NO CREAMOS PROYECTOS USAMOS SUIT PALDACA
 ---
 
-## 5. Crear PostgreSQL en Coolify
+## 5. Crear MySQL en Coolify
 
-1. En el proyecto: **+ New → Database → PostgreSQL**.
-2. Versión: **PostgreSQL 16** (o la que ofrezca por defecto).
+1. En el proyecto: **+ New → Database → MySQL**.
+2. Versión: **MySQL 8** (o la que ofrezca por defecto).
 3. Nombre visible: `cashflow-db`.
 4. **Save** y espera a que el contenedor quede *Running*.
 
 ### 5.1. Red interna (imprescindible)
 
-En el recurso de PostgreSQL:
+En el recurso de MySQL:
 
 1. **Configuration → Advanced**.
 2. Activa **Connect to Predefined Network**.
-3. Guarda. Sin esto la app no resuelve el host de Postgres.
+3. Guarda. Sin esto la app no resuelve el host de MySQL.
 
 ### 5.2. Copiar la URL interna
 
-En la ficha de PostgreSQL, copia **Postgres URL (internal)**. Tiene esta forma:
+En la ficha de MySQL, copia **MySQL URL (internal)**. Tiene esta forma:
 
 ```text
-postgresql://postgres:CONTRASEÑA@postgresql-XXXXXXXX:5432/postgres
+mysql://usuario:CONTRASEÑA@mysql-XXXXXXXX:3306/mysql
 ```
 
-Esa es tu `DATABASE_URL`. Úsala tal cual (Django acepta `postgres://` y `postgresql://`).
+Esa es tu `DATABASE_URL`. Django acepta `mysql://`.
 
 - **Internal** = tráfico dentro de Docker. Es la que debes usar.
 - **External** = solo si activas “Make it publicly available” (no lo hagas en producción).
 
-Si quieres una base llamada `cashflow` en lugar de `postgres`:
+Si quieres una base llamada `cashflow` en lugar de `mysql`:
 
-1. Abre **Terminal** del recurso PostgreSQL.
+1. Abre **Terminal** del recurso MySQL.
 2. Ejecuta:
 
 ```bash
-psql -U postgres -c "CREATE DATABASE cashflow;"
+mysql -u root -p -e "CREATE DATABASE cashflow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
-3. En la URL, cambia el final `/postgres` por `/cashflow`.
+3. En la URL, cambia el final `/mysql` por `/cashflow`.
 
 ### 5.3. Backups (recomendado)
 
@@ -179,7 +179,7 @@ Marca `SECRET_KEY` y `DATABASE_URL` como **sensitive**.
 | `SESSION_COOKIE_SECURE` | `1` | |
 | `CSRF_COOKIE_SECURE` | `1` | |
 | `SECURE_HSTS_SECONDS` | `31536000` | Cuando HTTPS ya funcione |
-| `DB_SSLMODE` | `prefer` | En red interna de Coolify está bien |
+| `DB_SSLMODE` | (omitir) | No aplica a MySQL en red interna |
 | `TZ` | `America/Caracas` | |
 
 Generar `SECRET_KEY` en tu PC:
@@ -188,7 +188,7 @@ Generar `SECRET_KEY` en tu PC:
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-Si la contraseña de Postgres tiene `@`, `:`, `/`, `#` o `?`, debe ir **codificada** en la URL (`@` → `%40`). La URL que copia Coolify ya viene escapada; no la reescribas a mano.
+Si la contraseña de MySQL tiene `@`, `:`, `/`, `#` o `?`, debe ir **codificada** en la URL (`@` → `%40`). La URL que copia Coolify ya viene escapada; no la reescribas a mano.
 
 ---
 
@@ -202,8 +202,8 @@ Si la contraseña de Postgres tiene `@`, `:`, `/`, `#` o `?`, debe ir **codifica
 
 ### 8.2. Red de la app
 
-**Configuration → Advanced** → activa **Connect to Predefined Network** (igual que en Postgres).  
-Sin esto, `DATABASE_URL` con host `postgresql-XXXX` no resuelve.
+**Configuration → Advanced** → activa **Connect to Predefined Network** (igual que en MySQL).  
+Sin esto, `DATABASE_URL` con host `mysql-XXXX` no resuelve.
 
 ### 8.3. Healthcheck (evita 502/503)
 
@@ -229,7 +229,7 @@ El start period da tiempo a `migrate` + `collectstatic` del entrypoint.
 1. Pulsa **Deploy**.
 2. Abre **Logs** y espera a:
    - build de la imagen (varios minutos la primera vez),
-   - `PostgreSQL disponible`,
+   - `MySQL disponible`,
    - `migrate`,
    - `collectstatic`,
    - Gunicorn escuchando en `0.0.0.0:8081`.
@@ -282,7 +282,7 @@ Si el VPS está en UTC, usa `0 13,19 * * *` (Caracas = UTC−4, sin horario de v
 
 El `docker/entrypoint.sh`:
 
-1. Espera a que Postgres acepte conexiones (`DATABASE_URL`).
+1. Espera a que MySQL acepte conexiones (`DATABASE_URL`).
 2. `python manage.py migrate --noinput`
 3. `python manage.py collectstatic --noinput`
 4. Arranca Gunicorn en el puerto 8081.
@@ -296,7 +296,7 @@ WhiteNoise sirve los estáticos. No hace falta Nginx dentro del contenedor.
 | Síntoma | Qué revisar |
 |---------|-------------|
 | Build OK, arranque: `SECRET_KEY debe definirse` | Falta `SECRET_KEY` en Environment Variables. Redeploy. |
-| `could not translate host name "postgresql-…"` | **Connect to Predefined Network** en la app **y** en Postgres. |
+| `could not translate host name "mysql-…"` | **Connect to Predefined Network** en la app **y** en MySQL. |
 | `password authentication failed` | URL internal mal copiada, o cambiaste la contraseña y no actualizaste `DATABASE_URL`. |
 | 502 Bad Gateway | Puerto de Coolify ≠ `8081`. Gunicorn debe escuchar en `0.0.0.0`, no en `127.0.0.1`. |
 | 503 No available server | Healthcheck mal (path `/health/`, puerto 8081) o start period corto. |
@@ -309,7 +309,7 @@ WhiteNoise sirve los estáticos. No hace falta Nginx dentro del contenedor.
 Logs:
 
 - App → **Logs** (Gunicorn + Django).
-- Postgres → **Logs**.
+- MySQL → **Logs**.
 - En el VPS: `docker ps` y `docker logs <contenedor>`.
 
 ---
@@ -321,7 +321,7 @@ git push origin main
 ```
 
 Coolify reconstruye y reinicia. Las migraciones se aplican solas en el entrypoint.  
-Los datos de PostgreSQL **no** se pierden: viven en el volumen del recurso Database.
+Los datos de MySQL **no** se pierden: viven en el volumen del recurso Database.
 
 Para un deploy manual: **Redeploy** en la ficha de la aplicación.
 
@@ -332,10 +332,10 @@ Para un deploy manual: **Redeploy** en la ficha de la aplicación.
 1. DNS A → IP del VPS.  
 2. Instalar Coolify.  
 3. Proyecto `control-gastos`.  
-4. Recurso **PostgreSQL** + *Connect to Predefined Network* + copiar URL internal.  
+4. Recurso **MySQL** + *Connect to Predefined Network* + copiar URL internal.  
 5. Recurso **Application** (Dockerfile, puerto 8081, misma red).  
 6. Pegar variables (`SECRET_KEY`, `DATABASE_URL`, hosts, CSRF).  
 7. Dominio `https://…` + healthcheck `/health/`.  
 8. Deploy → `createsuperuser` → tarea `bcv --strict-window` a las 09:00 y 15:00.
 
-Listo: la app queda en producción con HTTPS, Postgres por URL y deploys desde Git.
+Listo: la app queda en producción con HTTPS, MySQL por URL y deploys desde Git.

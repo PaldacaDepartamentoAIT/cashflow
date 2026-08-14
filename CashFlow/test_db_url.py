@@ -32,7 +32,17 @@ def test_mysql_url_sigue_disponible():
     cfg = _database_from_url('mysql://rag:12345@localhost:3306/cashflow_db')
     assert cfg['ENGINE'] == 'django.db.backends.mysql'
     assert cfg['NAME'] == 'cashflow_db'
+    assert cfg['USER'] == 'rag'
+    assert cfg['HOST'] == 'localhost'
+    assert cfg['PORT'] == '3306'
     assert cfg['OPTIONS']['charset'] == 'utf8mb4'
+
+
+def test_mysql_url_docker_interna():
+    cfg = _database_from_url('mysql://cashflow:s3cret@db:3306/cashflow')
+    assert cfg['ENGINE'] == 'django.db.backends.mysql'
+    assert cfg['HOST'] == 'db'
+    assert cfg['NAME'] == 'cashflow'
 
 
 def test_health_endpoint(client):

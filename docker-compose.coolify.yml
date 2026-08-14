@@ -1,4 +1,4 @@
-# Coolify: solo la app. Traefik hace de proxy y PostgreSQL es un recurso aparte.
+# Coolify: solo la app. Traefik hace de proxy y MySQL es un recurso aparte.
 #
 # En Coolify: Build Pack = Docker Compose, fichero = docker-compose.coolify.yml
 # Asigna el dominio al servicio `web` (puerto 8081). No publiques 80/443 aquí.

@@ -34,11 +34,11 @@ Producción también lee `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `DOMAIN`, `SEC
 
 Orden:
 
-1. Si existe `DATABASE_URL` → Postgres, MySQL o SQLite según el esquema (`postgres://`, `mysql://`, `sqlite://`).
+1. Si existe `DATABASE_URL` → MySQL, Postgres o SQLite según el esquema (`mysql://`, `postgres://`, `sqlite://`). En Docker/Coolify se usa **MySQL**.
 2. Si `DJANGO_USE_SQLITE=1` → fichero SQLite (`SQLITE_DB_NAME` o `test_db.sqlite3`).
 3. Si no → MySQL con `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`.
 
-Postgres: `CONN_MAX_AGE` (default 60), `CONN_HEALTH_CHECKS`, `sslmode` desde la query o `DB_SSLMODE`.
+MySQL/Postgres vía URL: `CONN_MAX_AGE` (default 60) y `CONN_HEALTH_CHECKS`. Postgres admite `sslmode` en la query o `DB_SSLMODE`.
 
 ## URLs raíz
 
