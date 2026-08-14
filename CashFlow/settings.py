@@ -22,16 +22,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # -----------------------------------------------------------------------------
 # Seguridad
 # -----------------------------------------------------------------------------
-SECRET_KEY = os.environ.get(
-    'SECRET_KEY',
-    'django-insecure-dev-only-change-in-production',
-)
+_default_secret = 'django-insecure-dev-only-change-in-production'
+SECRET_KEY = os.environ.get('SECRET_KEY', _default_secret)
 
 DEBUG = os.environ.get('DEBUG', '1' if IS_DEVELOPMENT else '0').lower() in ('1', 'true', 'yes')
 
 if IS_DEVELOPMENT:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'testserver']
 else:
+    if not os.environ.get('SECRET_KEY') or SECRET_KEY == _default_secret:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            'SECRET_KEY debe definirse con un valor fuerte en producción.'
+        )
     ALLOWED_HOSTS = [
         h.strip()
         for h in os.environ.get(
@@ -40,6 +43,31 @@ else:
         ).split(',')
         if h.strip()
     ]
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip()
+        for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+        if o.strip()
+    ]
+    for _h in ('localhost', '127.0.0.1', '[::1]'):
+        if _h not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(_h)
+    _domain = os.environ.get('DOMAIN', '').strip()
+    if _domain and _domain not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_domain)
+    if _domain:
+        _origin = f'https://{_domain}'
+        if _origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(_origin)
+    # Detrás de Caddy/Nginx (HTTPS terminado en el proxy)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', '1').lower() in ('1', 'true', 'yes')
+    CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', '1').lower() in ('1', 'true', 'yes')
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', '0').lower() in ('1', 'true', 'yes')
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '0'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
 # -----------------------------------------------------------------------------
 # Aplicaciones

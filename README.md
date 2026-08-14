@@ -1,18 +1,24 @@
 # Control de Gastos - Django
 
-Este proyecto es una aplicación de Django para el control de gastos de organizaciones.
+Aplicación Django para el control de gastos de organizaciones (flujo de caja multi-org, Bs./USD, tasa BCV).
+
+## Documentación
+
+- [Índice de módulos](docs/README.md)
+- [Auditoría](AUDITORIA.md)
+- [Despliegue Coolify](DESPLIEGUE-COOLIFY.md)
 
 ## Diagrama de Entidad-Relación (ERD)
 
-Puedes visualizar el esquema de la base de datos en dbdiagram.io siguiendo este enlace:
-
-[Ver Diagrama ER en dbdiagram.io](https://dbdiagram.io/d/Diagrama-de-entidad-relacion-6a1386b8dfb20dafcde08850)
+[Ver diagrama ER en dbdiagram.io](https://dbdiagram.io/d/Diagrama-de-entidad-relacion-6a1386b8dfb20dafcde08850)
 
 ---
 
-## Estructura del Proyecto
+## Estructura del proyecto
 
-- `accounts/`: Gestión de usuarios y perfiles.
-- `organizations/`: Modelos principales de organizaciones, cuentas, proyectos, valuaciones y transacciones.
-- `CashFlow/`: Configuración del proyecto Django.
-- `templates/`: Plantillas HTML.
+- `accounts/`: usuarios, login y roles Editor/Viewer.
+- `organizations/`: organizaciones, cuentas, proyectos, valuaciones y transacciones.
+- `BCV/`: tasas de cambio (scrape + histórico).
+- `superadmin_panel/`: panel exclusivo de superusuarios.
+- `CashFlow/`: configuración del proyecto Django.
+- `templates/` y `static/`: UI.

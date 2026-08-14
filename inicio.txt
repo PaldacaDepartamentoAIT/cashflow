@@ -7,16 +7,27 @@ py manage.py runserver
 
 .\venv\Scripts\Activate
 
-docker compose up
-
-docker compose -f docker-compose.localdb.yml up
+docker compose up -d --build
+docker compose --profile cron up -d
+docker compose exec web python manage.py createsuperuser
+docker compose exec web python manage.py bcv
 
 pytest
+
+# Documentación: docs/README.md  |  Auditoría: AUDITORIA.md
 
 --- Merge main <-> dev ---
 CashFlow/settings.py y CashFlow/db.py están en .gitignore y .gitattributes (merge=ours).
 En dev: git merge main  → conserva la config de dev (si es fast-forward, revisar esos dos archivos).
 En main: git merge dev  → conserva la config de producción en main.
+
+--- Producción Docker (VPS Contabo) ---
+  cp .env.example .env   # SECRET_KEY, POSTGRES_PASSWORD, DATABASE_URL, DOMAIN, ALLOWED_HOSTS
+  docker compose up -d --build
+  docker compose --profile cron up -d   # tasas BCV 09:00 y 15:00
+  Postgres interno: DATABASE_URL=postgres://USER:PASS@db:5432/DB
+  Postgres externo: comentar servicio db en docker-compose.yml y apuntar DATABASE_URL
+  Coolify: ver DESPLIEGUE-COOLIFY.md (Dockerfile o docker-compose.coolify.yml; no uses el compose con Caddy)
 
 --- Producción (Namecheap / LiteSpeed + Passenger) ---
 Variables de entorno en cPanel o .env del servidor:

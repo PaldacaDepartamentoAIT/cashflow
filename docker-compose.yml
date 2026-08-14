@@ -1,0 +1,114 @@
+# Producción en VPS (Contabo): Django + Gunicorn + PostgreSQL + Caddy
+#
+# 1) cp .env.example .env  → editar SECRET_KEY, contraseñas, DOMAIN, ALLOWED_HOSTS
+# 2) docker compose up -d --build
+# 3) docker compose exec web python manage.py createsuperuser
+#
+# PostgreSQL no se publica a Internet: Django se conecta con DATABASE_URL
+# en la red interna (host `db`). Para un Postgres externo, comenta el
+# servicio `db` y apunta DATABASE_URL a esa instancia.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cashflow}
+      POSTGRES_USER: ${POSTGRES_USER:-cashflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cashflow} -d ${POSTGRES_DB:-cashflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DJANGO_ENV: production
+      DEBUG: "0"
+      DATABASE_URL: ${DATABASE_URL}
+      TZ: America/Caracas
+    volumes:
+      - app_logs:/app/logs
+      - app_static:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health/', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # Tasas BCV (09:00 y 15:00 America/Caracas). Arranca aparte:
+  #   docker compose --profile cron up -d
+  bcv-cron:
+    profiles: ["cron"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DJANGO_ENV: production
+      DEBUG: "0"
+      DATABASE_URL: ${DATABASE_URL}
+      RUN_COLLECTSTATIC: "0"
+      TZ: America/Caracas
+    command: ["/bin/sh", "/app/docker/bcv-loop.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  app_logs:
+  app_static:
+  caddy_data:
+  caddy_config:

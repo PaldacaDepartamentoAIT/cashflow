@@ -38,4 +38,10 @@ staticfiles/
 # OS
 .DS_Store
 Thumbs.db
+
+# Docker / secretos
+.env
+.env.local
+.env.production
+!.env.example
 ```

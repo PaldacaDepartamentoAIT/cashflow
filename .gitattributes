@@ -4,3 +4,8 @@
 # También listados en .gitignore (siguen versionados; el ignore evita commits accidentales nuevos).
 CashFlow/settings.py merge=ours
 CashFlow/db.py merge=ours
+
+# Scripts de contenedor: LF obligatorio (el entrypoint falla en Linux con CRLF)
+docker/entrypoint.sh text eol=lf
+docker/bcv-loop.sh text eol=lf
+docker/Caddyfile text eol=lf

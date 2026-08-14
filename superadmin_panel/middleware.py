@@ -8,6 +8,7 @@ class SuperuserPanelMiddleware:
         '/superadmin/',
         '/accounts/logout/',
         '/admin/',
+        '/health/',
     )
 
     def __init__(self, get_response):
