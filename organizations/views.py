@@ -381,12 +381,17 @@ def crear_organizacion(request):
 
 from io import BytesIO
 from django.http import HttpResponse
-from django.template.loader import render_to_string
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.chart import PieChart, BarChart, LineChart, Reference
+from openpyxl.chart.marker import DataPoint
+from openpyxl.chart.shapes import GraphicalProperties
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.graphics.shapes import Drawing, String
 from reportlab.graphics.charts.piecharts import Pie
@@ -905,7 +910,8 @@ def exportar_pdf_transacciones(request):
             Paragraph("Descripción", header_cell_style),
             Paragraph("Referencia", header_cell_style),
             Paragraph("Monto (Dólares)", header_cell_style),
-            Paragraph("Notas", header_cell_style)
+            Paragraph("Notas", header_cell_style),
+            Paragraph("Estado", header_cell_style)
         ]
         data = [header]
         for trans in transactions:
@@ -914,13 +920,15 @@ def exportar_pdf_transacciones(request):
                 Paragraph(trans.description or "", cell_style),
                 trans.reference_number or "---",
                 f"{trans.real_dollars or 0:,.2f} $",
-                Paragraph(trans.notes or "", cell_style)
+                Paragraph(trans.notes or "", cell_style),
+                trans.get_status_display()
             ])
-        
+
         if transactions:
-            data.append(["", "BALANCE TOTAL:", "", f"{report_totals['total_real_usd'] or 0:,.2f} $", ""])
-            
-        col_widths = [2.5*cm, 8.5*cm, 3.5*cm, 4.5*cm, 6.0*cm]
+            data.append(["", "BALANCE TOTAL:", "", f"{report_totals['total_real_usd'] or 0:,.2f} $", "", ""])
+
+        col_widths = [2.5*cm, 7.5*cm, 3.0*cm, 4.0*cm, 5.0*cm, 2.5*cm]
+        estado_col = 5
     else:
         header = [
             Paragraph("Fecha", header_cell_style),
@@ -929,7 +937,8 @@ def exportar_pdf_transacciones(request):
             Paragraph("Monto (BS)", header_cell_style),
             Paragraph("Tasa", header_cell_style),
             Paragraph("Monto (USD)", header_cell_style),
-            Paragraph("Notas", header_cell_style)
+            Paragraph("Notas", header_cell_style),
+            Paragraph("Estado", header_cell_style)
         ]
         data = [header]
         for trans in transactions:
@@ -940,19 +949,22 @@ def exportar_pdf_transacciones(request):
                 f"{trans.amount_bs:,.2f}",
                 f"{trans.daily_rate:,.4f}",
                 f"{trans.amount_usd:,.2f}",
-                Paragraph(trans.notes or "", cell_style)
+                Paragraph(trans.notes or "", cell_style),
+                trans.get_status_display()
             ])
-            
+
         if transactions:
             data.append([
                 "", "", "BALANCE TOTAL:",
                 f"{report_totals['total_bs'] or 0:,.2f} Bs.",
                 "",
                 f"{report_totals['total_usd'] or 0:,.2f} $",
+                "",
                 ""
             ])
-            
-        col_widths = [2.2*cm, 5.5*cm, 2.8*cm, 3.2*cm, 2.2*cm, 3.2*cm, 5.5*cm]
+
+        col_widths = [2.2*cm, 4.8*cm, 2.5*cm, 3.2*cm, 2.2*cm, 3.2*cm, 4.7*cm, 2.4*cm]
+        estado_col = 7
     
     table = Table(data, colWidths=col_widths, repeatRows=1)
     
@@ -990,6 +1002,11 @@ def exportar_pdf_transacciones(request):
             else:
                 table_style.add('TEXTCOLOR', (5, idx), (5, idx), colors.HexColor("#198754"))
             table_style.add('FONTNAME', (5, idx), (5, idx), 'Helvetica-Bold')
+
+        # Estado
+        estado_color = "#198754" if trans.status == 'completado' else "#fd7e14"
+        table_style.add('TEXTCOLOR', (estado_col, idx), (estado_col, idx), colors.HexColor(estado_color))
+        table_style.add('FONTNAME', (estado_col, idx), (estado_col, idx), 'Helvetica-Bold')
 
     # Estilo de la última fila (Balance)
     if transactions:
@@ -1130,23 +1147,252 @@ def exportar_pdf_transacciones(request):
 def exportar_xlsx_transacciones(request):
     org, transactions, report_type, report_totals, filter_label = _get_report_data(request)
     now = timezone.now()
-    
-    filename = f"balance_general_{org.name}_{now.strftime('%Y%m%d')}.xls"
-    
-    context = {
-        'org': org,
-        'transactions': transactions,
-        'report_type': report_type,
-        'report_totals': report_totals,
-        'filter_label': filter_label,
-        'now': now,
-    }
-    
-    html_content = render_to_string('organizations/reportes/transacciones_excel.html', context)
-    
-    response = HttpResponse(html_content, content_type='application/vnd.ms-excel')
+
+    filename = f"balance_general_{org.name}_{now.strftime('%Y%m%d')}.xlsx"
+
+    TITLE_FILL = PatternFill('solid', fgColor='0D6EFD')
+    HEADER_FILL = PatternFill('solid', fgColor='F8F9FA')
+    TOTAL_FILL = PatternFill('solid', fgColor='F1F1F1')
+    THIN_BORDER = Border(*(Side(style='thin', color='DEE2E6'),) * 4)
+    POS_FONT = Font(color='198754', bold=True)
+    NEG_FONT = Font(color='DC3545', bold=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Balance General'
+
+    is_real = report_type == 'real'
+    base_cols = 5 if is_real else 7  # columnas del reporte original (sin tocar)
+    amount_col = 4 if is_real else 6  # columna usada como fuente de los gráficos (Monto Dólares / Monto USD)
+    n_cols = base_cols + 3  # + Estado, Categoría, Saldo Acumulado
+
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
+    title_cell = ws.cell(row=1, column=1, value=f"Balance {'Dólares Reales' if is_real else 'BCV'}")
+    title_cell.font = Font(size=16, bold=True, color='FFFFFF')
+    title_cell.alignment = Alignment(horizontal='center')
+    title_cell.fill = TITLE_FILL
+    ws.row_dimensions[1].height = 24
+
+    info_rows = [
+        f"Organización: {org.name}",
+        f"Generado el: {now.strftime('%d/%m/%Y %H:%M')}",
+        f"Filtro aplicado: {filter_label}",
+    ]
+    for i, text in enumerate(info_rows, start=2):
+        ws.merge_cells(start_row=i, start_column=1, end_row=i, end_column=n_cols)
+        cell = ws.cell(row=i, column=1, value=text)
+        cell.alignment = Alignment(horizontal='center')
+
+    header_row = 6
+    if is_real:
+        headers = ['Fecha', 'Descripción', 'Referencia', 'Monto (Dólares)', 'Notas']
+    else:
+        headers = ['Fecha', 'Descripción', 'Referencia', 'Monto (BS)', 'Tasa', 'Monto (USD)', 'Notas']
+    headers += ['Estado', 'Categoría', 'Saldo Acumulado']
+
+    for col, text in enumerate(headers, start=1):
+        cell = ws.cell(row=header_row, column=col, value=text)
+        cell.font = Font(bold=True, color='444444')
+        cell.fill = HEADER_FILL
+        cell.border = THIN_BORDER
+
+    first_data_row = header_row + 1
+    row = first_data_row
+    transactions = transactions.prefetch_related('categories')
+    amount_col_letter = get_column_letter(amount_col)
+    for trans in transactions:
+        col = 1
+        date_cell = ws.cell(row=row, column=col, value=trans.date)
+        date_cell.number_format = 'DD/MM/YYYY'
+        date_cell.border = THIN_BORDER
+        col += 1
+
+        ws.cell(row=row, column=col, value=trans.description or '').border = THIN_BORDER
+        col += 1
+        ws.cell(row=row, column=col, value=trans.reference_number or '---').border = THIN_BORDER
+        col += 1
+
+        if is_real:
+            amount = float(trans.real_dollars or 0)
+            amount_cell = ws.cell(row=row, column=col, value=amount)
+            amount_cell.number_format = '#,##0.00 "$"'
+            amount_cell.font = NEG_FONT if amount < 0 else POS_FONT
+            amount_cell.border = THIN_BORDER
+            col += 1
+            ws.cell(row=row, column=col, value=trans.notes or '').border = THIN_BORDER
+            col += 1
+        else:
+            amount_bs = float(trans.amount_bs or 0)
+            bs_cell = ws.cell(row=row, column=col, value=amount_bs)
+            bs_cell.number_format = '#,##0.00'
+            bs_cell.font = NEG_FONT if amount_bs < 0 else POS_FONT
+            bs_cell.border = THIN_BORDER
+            col += 1
+
+            rate_cell = ws.cell(row=row, column=col, value=float(trans.daily_rate or 0))
+            rate_cell.number_format = '#,##0.0000'
+            rate_cell.border = THIN_BORDER
+            col += 1
+
+            amount_usd = float(trans.amount_usd or 0)
+            usd_cell = ws.cell(row=row, column=col, value=amount_usd)
+            usd_cell.number_format = '#,##0.00'
+            usd_cell.font = NEG_FONT if amount_usd < 0 else POS_FONT
+            usd_cell.border = THIN_BORDER
+            col += 1
+
+            ws.cell(row=row, column=col, value=trans.notes or '').border = THIN_BORDER
+            col += 1
+
+        estado_cell = ws.cell(row=row, column=col, value=trans.get_status_display())
+        estado_cell.border = THIN_BORDER
+        estado_cell.font = POS_FONT if trans.status == 'completado' else Font(color='FD7E14', bold=True)
+        col += 1
+
+        category_names = ', '.join(c.name for c in trans.categories.all()) or 'Sin categoría'
+        ws.cell(row=row, column=col, value=category_names).border = THIN_BORDER
+        col += 1
+
+        saldo_cell = ws.cell(
+            row=row, column=col,
+            value=f'=SUM(${amount_col_letter}${first_data_row}:{amount_col_letter}{row})',
+        )
+        saldo_cell.number_format = '#,##0.00 "$"'
+        saldo_cell.border = THIN_BORDER
+
+        row += 1
+    last_data_row = row - 1
+
+    if transactions:
+        ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=3)
+        label_cell = ws.cell(row=row, column=2, value='BALANCE TOTAL:')
+        label_cell.alignment = Alignment(horizontal='right')
+        for col in range(1, n_cols + 1):
+            ws.cell(row=row, column=col).fill = TOTAL_FILL
+            ws.cell(row=row, column=col).border = THIN_BORDER
+            ws.cell(row=row, column=col).font = Font(bold=True)
+
+        if is_real:
+            total = float(report_totals.get('total_real_usd') or 0)
+            total_cell = ws.cell(row=row, column=4, value=total)
+            total_cell.number_format = '#,##0.00 "$"'
+            total_cell.font = Font(bold=True, color='DC3545' if total < 0 else '198754')
+        else:
+            total_bs = float(report_totals.get('total_bs') or 0)
+            bs_cell = ws.cell(row=row, column=4, value=total_bs)
+            bs_cell.number_format = '#,##0.00'
+            bs_cell.font = Font(bold=True, color='DC3545' if total_bs < 0 else '198754')
+
+            total_usd = float(report_totals.get('total_usd') or 0)
+            usd_cell = ws.cell(row=row, column=6, value=total_usd)
+            usd_cell.number_format = '#,##0.00 "$"'
+            usd_cell.font = Font(bold=True, color='DC3545' if total_usd < 0 else '198754')
+        row += 1
+
+    column_widths = [12, 30, 16, 16, 12, 16, 30] if not is_real else [12, 34, 16, 18, 34]
+    column_widths += [14, 22, 18]
+    for i, width in enumerate(column_widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = width
+    ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
+
+    if transactions.exists():
+        _build_charts_sheet(
+            wb, ws, transactions, report_type,
+            amount_col=amount_col, categoria_col=base_cols + 2, saldo_col=base_cols + 3,
+            header_row=header_row, first_data_row=first_data_row, last_data_row=last_data_row,
+        )
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+def _build_charts_sheet(wb, ws, transactions, report_type, amount_col, categoria_col, saldo_col,
+                         header_row, first_data_row, last_data_row):
+    # cat_labels/cat_colors solo indican qué categorías existen y su color;
+    # los montos de los gráficos se calculan con fórmulas que leen la tabla.
+    cd = get_chart_data(transactions, mode=report_type, json_format=False)
+    cs = wb.create_sheet('Gráficos')
+
+    sheet_ref = f"'{ws.title}'"
+    amount_letter = get_column_letter(amount_col)
+    categoria_letter = get_column_letter(categoria_col)
+    amount_range = f'{sheet_ref}!${amount_letter}${first_data_row}:${amount_letter}${last_data_row}'
+    categoria_range = f'{sheet_ref}!${categoria_letter}${first_data_row}:${categoria_letter}${last_data_row}'
+
+    anchor_row = 1
+
+    max_data_row = anchor_row + 2  # bloque de Ingresos vs Gastos siempre ocupa hasta aquí
+    if cd['cat_labels']:
+        max_data_row = max(max_data_row, anchor_row + len(cd['cat_labels']))
+    chart_row = max_data_row + 3
+
+    if cd['cat_labels']:
+        cs.cell(row=anchor_row, column=1, value='Categoría')
+        cs.cell(row=anchor_row, column=2, value='Gasto (USD)')
+        for i, label in enumerate(cd['cat_labels'], start=1):
+            safe_label = label.replace('"', '""')
+            cs.cell(row=anchor_row + i, column=1, value=label)
+            cs.cell(row=anchor_row + i, column=2,
+                    value=f'=ABS(SUMIFS({amount_range},{categoria_range},"*{safe_label}*",{amount_range},"<0"))')
+        n = len(cd['cat_labels'])
+
+        pie = PieChart()
+        pie.title = 'Gastos por Categoría'
+        data = Reference(cs, min_col=2, min_row=anchor_row, max_row=anchor_row + n)
+        cats = Reference(cs, min_col=1, min_row=anchor_row + 1, max_row=anchor_row + n)
+        pie.add_data(data, titles_from_data=True)
+        pie.set_categories(cats)
+        pie.varyColors = True
+        pie.series[0].data_points = [
+            DataPoint(idx=i, spPr=GraphicalProperties(solidFill=(color or '#000000').lstrip('#')))
+            for i, color in enumerate(cd['cat_colors'])
+        ]
+        pie.height = 9
+        pie.width = 11
+        cs.add_chart(pie, f'{get_column_letter(2)}{chart_row}')
+
+    cs.cell(row=anchor_row, column=4 + 6, value='Tipo')
+    cs.cell(row=anchor_row, column=5 + 6, value='Monto (USD)')
+    cs.cell(row=anchor_row + 1, column=4 + 6, value='Ingresos')
+    cs.cell(row=anchor_row + 1, column=5 + 6, value=f'=SUMIF({amount_range},">0")')
+    cs.cell(row=anchor_row + 2, column=4 + 6, value='Gastos')
+    cs.cell(row=anchor_row + 2, column=5 + 6, value=f'=ABS(SUMIF({amount_range},"<0"))')
+
+    bar = BarChart()
+    bar.type = 'col'
+    bar.title = 'Ingresos vs Gastos'
+    bar_data = Reference(cs, min_col=11, min_row=anchor_row, max_row=anchor_row + 2)
+    bar_cats = Reference(cs, min_col=10, min_row=anchor_row + 1, max_row=anchor_row + 2)
+    bar.add_data(bar_data, titles_from_data=True)
+    bar.set_categories(bar_cats)
+    bar.series[0].data_points = [
+        DataPoint(idx=0, spPr=GraphicalProperties(solidFill='198754')),  # Ingresos: verde
+        DataPoint(idx=1, spPr=GraphicalProperties(solidFill='DC3545')),  # Gastos: rojo
+    ]
+    bar.legend = None
+    bar.height = 9
+    bar.width = 11
+    cs.add_chart(bar, f'{get_column_letter(10)}{chart_row}')
+
+    # Evolución del saldo: se lee directamente de las columnas Fecha y Saldo
+    # Acumulado de la tabla de transacciones, sin ningún bloque auxiliar.
+    line = LineChart()
+    line.title = 'Evolución del Saldo'
+    line_data = Reference(ws, min_col=saldo_col, min_row=header_row, max_row=last_data_row)
+    line_cats = Reference(ws, min_col=1, min_row=first_data_row, max_row=last_data_row)
+    line.add_data(line_data, titles_from_data=True)
+    line.set_categories(line_cats)
+    line.height = 9
+    line.width = 11
+    cs.add_chart(line, f'{get_column_letter(18)}{chart_row}')
 
 
 def _safe_next_url(request, default):

@@ -32,5 +32,6 @@ pyhanko-certvalidator==0.31.1
 freetype-py==2.5.1
 reportlab==4.5.1
 mysqlclient==2.2.8
+openpyxl==3.1.5
 pytest
 pytest-django
