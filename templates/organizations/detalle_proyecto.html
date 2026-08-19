@@ -381,7 +381,7 @@
                         {% endfor %}
                     </td>
                     <td class="col-status cf-only-sm cf-hide-phone">
-                        <span class="cf-badge cf-badge--pill {% if trans.status == 'completado' %}cf-badge--success{% elif trans.status == 'pendiente' %}cf-badge--admin{% else %}cf-badge--danger{% endif %}">
+                        <span class="cf-badge cf-badge--pill {% if trans.status == 'completado' %}cf-badge--success{% elif trans.status == 'pendiente' %}cf-badge--admin{% elif trans.status == 'parcial' %}cf-badge--primary{% else %}cf-badge--danger{% endif %}">
                             {{ trans.get_status_display }}
                         </span>
                     </td>
