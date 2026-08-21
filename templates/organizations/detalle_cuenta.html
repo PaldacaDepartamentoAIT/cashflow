@@ -262,6 +262,8 @@
                             <span class="cf-badge cf-badge--success">Completado</span>
                             {% elif trans.status == 'pendiente' %}
                             <span class="cf-badge cf-badge--admin">Pendiente</span>
+                            {% elif trans.status == 'parcial' %}
+                            <span class="cf-badge cf-badge--primary">Parcial</span>
                             {% else %}
                             <span class="cf-badge cf-badge--danger">Cancelado</span>
                             {% endif %}

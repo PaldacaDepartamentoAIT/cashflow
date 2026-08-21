@@ -327,6 +327,7 @@
                         <td class="col-status cf-only-sm cf-hide-phone">
                             {% if trans.status == 'completado' %}<span class="cf-badge cf-badge--success">OK</span>
                             {% elif trans.status == 'pendiente' %}<span class="cf-badge cf-badge--admin">P</span>
+                            {% elif trans.status == 'parcial' %}<span class="cf-badge cf-badge--primary">PA</span>
                             {% else %}<span class="cf-badge cf-badge--danger">C</span>{% endif %}
                         </td>
                         <td class="cf-text-end cf-pe-4 col-actions cf-hide-phone">

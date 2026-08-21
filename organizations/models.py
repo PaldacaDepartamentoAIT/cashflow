@@ -128,6 +128,7 @@ class Transaction(models.Model):
     STATUS_CHOICES = [
         ('completado', 'Completado'),
         ('pendiente', 'Pendiente'),
+        ('parcial', 'Parcial'),
     ]
 
     date = models.DateField(verbose_name="Fecha")

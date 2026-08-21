@@ -250,7 +250,7 @@
                                     </div>
                                 </td>
                                 <td class="col-status cf-hide-phone">
-                                    <span class="cf-badge cf-badge--pill {% if tx.status == 'completado' %}cf-badge--success{% elif tx.status == 'pendiente' %}cf-badge--admin{% else %}cf-badge--danger{% endif %}">
+                                    <span class="cf-badge cf-badge--pill {% if tx.status == 'completado' %}cf-badge--success{% elif tx.status == 'pendiente' %}cf-badge--admin{% elif tx.status == 'parcial' %}cf-badge--primary{% else %}cf-badge--danger{% endif %}">
                                         {{ tx.get_status_display }}
                                     </span>
                                 </td>

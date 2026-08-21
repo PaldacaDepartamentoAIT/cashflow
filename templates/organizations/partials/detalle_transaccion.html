@@ -101,6 +101,8 @@
                 <span class="cf-badge cf-badge--success">Completado</span>
                 {% elif transaction.status == 'pendiente' %}
                 <span class="cf-badge cf-badge--info">Pendiente</span>
+                {% elif transaction.status == 'parcial' %}
+                <span class="cf-badge cf-badge--primary">Parcial</span>
                 {% else %}
                 <span class="cf-badge cf-badge--danger">Cancelado</span>
                 {% endif %}

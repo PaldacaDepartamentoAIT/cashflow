@@ -647,6 +647,7 @@ def lista_transacciones(request):
             ('', 'Todos los estados'),
             ('completado', 'Completado'),
             ('pendiente', 'Pendiente'),
+            ('parcial', 'Parcial'),
         ],
         'filter_options': [
             ('day', 'Hoy'),
@@ -1004,7 +1005,12 @@ def exportar_pdf_transacciones(request):
             table_style.add('FONTNAME', (5, idx), (5, idx), 'Helvetica-Bold')
 
         # Estado
-        estado_color = "#198754" if trans.status == 'completado' else "#fd7e14"
+        if trans.status == 'completado':
+            estado_color = "#198754"
+        elif trans.status == 'parcial':
+            estado_color = "#6366f1"
+        else:
+            estado_color = "#fd7e14"
         table_style.add('TEXTCOLOR', (estado_col, idx), (estado_col, idx), colors.HexColor(estado_color))
         table_style.add('FONTNAME', (estado_col, idx), (estado_col, idx), 'Helvetica-Bold')
 
@@ -1246,7 +1252,12 @@ def exportar_xlsx_transacciones(request):
 
         estado_cell = ws.cell(row=row, column=col, value=trans.get_status_display())
         estado_cell.border = THIN_BORDER
-        estado_cell.font = POS_FONT if trans.status == 'completado' else Font(color='FD7E14', bold=True)
+        if trans.status == 'completado':
+            estado_cell.font = POS_FONT
+        elif trans.status == 'parcial':
+            estado_cell.font = Font(color='6366F1', bold=True)
+        else:
+            estado_cell.font = Font(color='FD7E14', bold=True)
         col += 1
 
         category_names = ', '.join(c.name for c in trans.categories.all()) or 'Sin categoría'
@@ -1909,6 +1920,7 @@ def detalle_cuenta(request, acc_id):
             ('', 'Todos los estados'),
             ('completado', 'Completado'),
             ('pendiente', 'Pendiente'),
+            ('parcial', 'Parcial'),
         ],
         'filter_options': filter_options,
         'accounts_data': json.dumps(accounts_data),
@@ -2305,6 +2317,7 @@ def detalle_proyecto(request, proj_id):
             ('', 'Todos los estados'),
             ('completado', 'Completado'),
             ('pendiente', 'Pendiente'),
+            ('parcial', 'Parcial'),
         ],
     })
 
@@ -2692,6 +2705,7 @@ def proyecto_publico(request, token):
             ('', 'Todos los estados'),
             ('completado', 'Completado'),
             ('pendiente', 'Pendiente'),
+            ('parcial', 'Parcial'),
         ],
         # Se ocultan navbar y sidebar siempre (incluso si quien abre el enlace
         # público resulta estar logueado en su propia sesión). wide_layout evita
