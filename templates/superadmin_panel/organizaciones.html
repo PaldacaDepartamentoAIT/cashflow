@@ -135,7 +135,7 @@
                         </div>
                         <h6 class="sa-wizard-panel__title">Cuentas bancarias</h6>
                         <p class="sa-wizard-panel__desc">
-                            Las cuentas en Bs. y USD son independientes. Complete banco, RIF, número de cuenta, titular y saldo inicial.
+                            Las cuentas en Bs., USD y EUR son independientes. Complete banco, RIF, número de cuenta, titular y saldo inicial.
                         </p>
 
                         <div class="sa-wizard-user-tabs sa-wizard-account-tabs" role="tablist">
@@ -144,6 +144,9 @@
                             </button>
                             <button type="button" class="sa-wizard-user-tab" data-account-tab="usd" role="tab">
                                 <i class="fa-solid fa-dollar-sign"></i> Cuentas USD
+                            </button>
+                            <button type="button" class="sa-wizard-user-tab" data-account-tab="eur" role="tab">
+                                <i class="fa-solid fa-euro-sign"></i> Cuentas EUR
                             </button>
                         </div>
 
@@ -157,6 +160,12 @@
                             <div class="sa-wizard-accounts" id="wizardAccountsUsdList"></div>
                             <button type="button" class="cf-btn cf-btn--sm cf-btn--outline cf-mt-3" id="wizardAddUsdAccountBtn">
                                 <i class="fa-solid fa-plus"></i> Agregar cuenta USD
+                            </button>
+                        </div>
+                        <div class="sa-wizard-account-panel" data-account-panel="eur">
+                            <div class="sa-wizard-accounts" id="wizardAccountsEurList"></div>
+                            <button type="button" class="cf-btn cf-btn--sm cf-btn--outline cf-mt-3" id="wizardAddEurAccountBtn">
+                                <i class="fa-solid fa-plus"></i> Agregar cuenta EUR
                             </button>
                         </div>
 

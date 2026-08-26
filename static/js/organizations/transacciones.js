@@ -3,6 +3,67 @@ function initTransacciones(config) {
     let currentInputCurrency = 'USD';
     let currentFeeInputCurrency = 'USD';
 
+    // Cada cuenta mueve una sola pista de dinero: las de bolívares usan el par
+    // Bs./USD-BCV con tasa del día, las de dólares el campo de dólares reales y
+    // las de euros el campo de euros. La moneda de la cuenta decide qué se ve.
+    function applyAccountCurrencyMode(currency) {
+        const form = document.getElementById('transactionForm');
+        if (!form) return;
+
+        const isReal = currency === 'USD';
+        const isEur = currency === 'EUR';
+        const isBcv = !isReal && !isEur;
+
+        const amountDisplay = document.getElementById('id_amount_display');
+        const eurGroup = document.getElementById('eurInputGroup');
+
+        document.getElementById('realDollarInputContainer').style.display = isReal ? 'block' : 'none';
+        if (eurGroup) eurGroup.style.display = isEur ? 'block' : 'none';
+
+        document.getElementById('dailyRateContainer').style.display = isBcv ? 'block' : 'none';
+        amountDisplay.parentElement.parentElement.style.display = isBcv ? 'block' : 'none';
+        document.getElementById('currencyToggleBtn').style.display = isBcv ? 'inline-block' : 'none';
+        amountDisplay.required = isBcv;
+
+        // Comisión bancaria: un grupo de campos por pista.
+        if (document.getElementById('has_bank_fee').checked) {
+            document.getElementById('bcvFeeInputGroup').style.display = isBcv ? 'block' : 'none';
+            document.getElementById('realFeeInputGroup').style.display = isReal ? 'block' : 'none';
+            const eurFeeGroup = document.getElementById('eurFeeInputGroup');
+            if (eurFeeGroup) eurFeeGroup.style.display = isEur ? 'block' : 'none';
+        }
+
+        // Los campos que no aplican se ponen en cero para que el backend no los
+        // rechace por pertenecer a otra moneda.
+        const eurField = form.querySelector('input[name="amount_eur"]');
+        const eurFeeField = form.querySelector('input[name="bank_fee_eur"]');
+        const realField = form.querySelector('input[name="real_dollars"]');
+        if (!isEur) {
+            if (eurField) eurField.value = '';
+            if (eurFeeField) eurFeeField.value = '0.00';
+        }
+        if (!isReal && realField) realField.value = '';
+
+        if (isBcv) {
+            currentInputCurrency = currency === 'BS' ? 'BS' : currentInputCurrency;
+            currentFeeInputCurrency = currentInputCurrency;
+            updateCurrencyUI();
+            updateFeeCurrencyUI();
+        }
+    }
+
+    // Aplica el signo del tipo de transacción (egreso = negativo) al campo de euros.
+    function syncEurFields() {
+        const form = document.getElementById('transactionForm');
+        if (!form) return;
+        const eurField = form.querySelector('input[name="amount_eur"]');
+        if (!eurField) return;
+        const isEgreso = document.getElementById('type_egreso').checked;
+        let val = Math.abs(parseFloat(eurField.value)) || 0;
+        if (isEgreso && val > 0) val = -val;
+        eurField.setAttribute('value', val);
+    }
+
     // Definir funciones globales inmediatamente
     window.resetForm = function () {
         if (window.userIsViewer) return;
@@ -36,15 +97,18 @@ function initTransacciones(config) {
         document.getElementById('bankFeeContainer').style.display = 'none';
         document.getElementById('bcvFeeInputGroup').style.display = 'block';
         document.getElementById('realFeeInputGroup').style.display = 'none';
+        const eurFeeGroupReset = document.getElementById('eurFeeInputGroup');
+        if (eurFeeGroupReset) eurFeeGroupReset.style.display = 'none';
         currentFeeInputCurrency = 'USD';
         document.getElementById('id_bank_fee_display').value = '';
         form.querySelector('[name="bank_fee_real_usd"]').value = '0.00';
+        const eurFeeFieldReset = form.querySelector('[name="bank_fee_eur"]');
+        if (eurFeeFieldReset) eurFeeFieldReset.value = '0.00';
 
-        // Reset real dollars
-        const realSwitch = document.getElementById('realDollarSwitch');
-        realSwitch.checked = false;
-        realSwitch.disabled = true; // Disabled until account selected
+        // Reset real dollars / euros
         document.getElementById('realDollarInputContainer').style.display = 'none';
+        const eurGroupReset = document.getElementById('eurInputGroup');
+        if (eurGroupReset) eurGroupReset.style.display = 'none';
         document.getElementById('dailyRateContainer').style.display = 'block';
         document.getElementById('id_amount_display').parentElement.parentElement.style.display = 'block';
         document.getElementById('currencyToggleBtn').style.display = 'inline-block';
@@ -53,6 +117,8 @@ function initTransacciones(config) {
         // Disable inputs until account selected
         document.getElementById('id_amount_display').disabled = true;
         form.querySelector('input[name="real_dollars"]').disabled = true;
+        const eurFieldReset = form.querySelector('input[name="amount_eur"]');
+        if (eurFieldReset) eurFieldReset.disabled = true;
         document.getElementById('has_bank_fee').disabled = true;
 
         // Reset cost center
@@ -64,7 +130,7 @@ function initTransacciones(config) {
         updateValuationVisibility();
     };
 
-    window.editTransaction = function (id, date, account, ref, desc, notes, cat, cost_center, project, valuation, status, bs, usd, rate, fee_bs, fee_usd, real_dollars, fee_real_usd) {
+    window.editTransaction = function (id, date, account, ref, desc, notes, cat, cost_center, project, valuation, status, bs, usd, rate, fee_bs, fee_usd, real_dollars, fee_real_usd, amount_eur, fee_eur) {
         if (window.userIsViewer) return;
         const form = document.getElementById('transactionForm');
         if (!form) return;
@@ -105,19 +171,22 @@ function initTransacciones(config) {
         form.querySelector('[name="daily_rate"]').value = (parseFloat(rate.toString().replace(',', '.')) || 1).toString();
 
         const realDollarsNum = parseFloat((real_dollars || 0).toString().replace(',', '.')) || 0;
-        const realSwitch = document.getElementById('realDollarSwitch');
-        
+        const eurNum = parseFloat((amount_eur || 0).toString().replace(',', '.')) || 0;
         // Enable inputs for editing
         document.getElementById('id_amount_display').disabled = false;
         form.querySelector('input[name="real_dollars"]').disabled = false;
+        const eurFieldEdit = form.querySelector('input[name="amount_eur"]');
+        if (eurFieldEdit) eurFieldEdit.disabled = false;
         document.getElementById('has_bank_fee').disabled = false;
 
-        // Account-based switch state
+        // La moneda de la cuenta decide qué campos se muestran
         const accCurrency = config.accountsData[account];
-        realSwitch.disabled = (accCurrency !== 'USD');
 
-        if (realDollarsNum !== 0 || accCurrency === 'USD') {
-            realSwitch.checked = true;
+        if (eurNum !== 0 || accCurrency === 'EUR') {
+            if (eurFieldEdit) eurFieldEdit.value = Math.abs(eurNum);
+            applyAccountCurrencyMode('EUR');
+            document.getElementById(eurNum < 0 ? 'type_egreso' : 'type_ingreso').checked = true;
+        } else if (realDollarsNum !== 0 || accCurrency === 'USD') {
             // Si es cuenta USD pero real_dollars es 0, usamos el usdNum original
             if (realDollarsNum === 0 && accCurrency === 'USD') {
                 form.querySelector('[name="real_dollars"]').value = Math.abs(parseFloat(usd.toString().replace(',', '.')) || 0);
@@ -125,6 +194,8 @@ function initTransacciones(config) {
                 form.querySelector('[name="real_dollars"]').value = Math.abs(realDollarsNum);
             }
             document.getElementById('realDollarInputContainer').style.display = 'block';
+            const eurGroupHide = document.getElementById('eurInputGroup');
+            if (eurGroupHide) eurGroupHide.style.display = 'none';
             document.getElementById('dailyRateContainer').style.display = 'none';
             document.getElementById('id_amount_display').parentElement.parentElement.style.display = 'none';
             document.getElementById('currencyToggleBtn').style.display = 'none';
@@ -136,8 +207,9 @@ function initTransacciones(config) {
                 document.getElementById('type_ingreso').checked = true;
             }
         } else {
-            realSwitch.checked = false;
             document.getElementById('realDollarInputContainer').style.display = 'none';
+            const eurGroupBcv = document.getElementById('eurInputGroup');
+            if (eurGroupBcv) eurGroupBcv.style.display = 'none';
             document.getElementById('dailyRateContainer').style.display = 'block';
             document.getElementById('id_amount_display').parentElement.parentElement.style.display = 'block';
             document.getElementById('currencyToggleBtn').style.display = 'inline-block';
@@ -165,16 +237,27 @@ function initTransacciones(config) {
         const feeBsNum = parseFloat((fee_bs || 0).toString().replace(',', '.')) || 0;
         const feeUsdNum = parseFloat((fee_usd || 0).toString().replace(',', '.')) || 0;
         const feeRealNum = parseFloat((fee_real_usd || 0).toString().replace(',', '.')) || 0;
-        
+        const feeEurNum = parseFloat((fee_eur || 0).toString().replace(',', '.')) || 0;
+
         form.querySelector('[name="bank_fee_bs"]').value = feeBsNum;
         form.querySelector('[name="bank_fee_usd"]').value = feeUsdNum;
         form.querySelector('[name="bank_fee_real_usd"]').value = feeRealNum;
+        const eurFeeField = form.querySelector('[name="bank_fee_eur"]');
+        if (eurFeeField) eurFeeField.value = feeEurNum;
 
-        if (feeBsNum > 0 || feeUsdNum > 0 || feeRealNum > 0) {
+        const isEurTx = (eurNum !== 0 || accCurrency === 'EUR');
+
+        if (feeBsNum > 0 || feeUsdNum > 0 || feeRealNum > 0 || feeEurNum > 0) {
             document.getElementById('has_bank_fee').checked = true;
             document.getElementById('bankFeeContainer').style.display = 'block';
-            
-            if (realSwitch.checked) {
+
+            const eurFeeGroup = document.getElementById('eurFeeInputGroup');
+            if (eurFeeGroup) eurFeeGroup.style.display = isEurTx ? 'block' : 'none';
+
+            if (isEurTx) {
+                document.getElementById('bcvFeeInputGroup').style.display = 'none';
+                document.getElementById('realFeeInputGroup').style.display = 'none';
+            } else if (accCurrency === 'USD') {
                 document.getElementById('bcvFeeInputGroup').style.display = 'none';
                 document.getElementById('realFeeInputGroup').style.display = 'block';
             } else {
@@ -210,7 +293,7 @@ function initTransacciones(config) {
         CFModal.open('transactionModal');
     };
 
-    window.duplicateTransaction = function (date, account, ref, desc, notes, cat, cost_center, project, valuation, status, bs, usd, rate, fee_bs, fee_usd, real_dollars, fee_real_usd) {
+    window.duplicateTransaction = function (date, account, ref, desc, notes, cat, cost_center, project, valuation, status, bs, usd, rate, fee_bs, fee_usd, real_dollars, fee_real_usd, amount_eur, fee_eur) {
         if (window.userIsViewer) return;
         window.resetForm();
         const form = document.getElementById('transactionForm');
@@ -252,17 +335,20 @@ function initTransacciones(config) {
         // Enable inputs for editing
         document.getElementById('id_amount_display').disabled = false;
         form.querySelector('input[name="real_dollars"]').disabled = false;
+        const eurFieldDup = form.querySelector('input[name="amount_eur"]');
+        if (eurFieldDup) eurFieldDup.disabled = false;
         document.getElementById('has_bank_fee').disabled = false;
 
         const realDollarsNum = parseFloat((real_dollars || 0).toString().replace(',', '.')) || 0;
-        const realSwitch = document.getElementById('realDollarSwitch');
-
-        // Account-based switch state
+        const eurNum = parseFloat((amount_eur || 0).toString().replace(',', '.')) || 0;
+        // La moneda de la cuenta decide qué campos se muestran
         const accCurrency = config.accountsData[account];
-        realSwitch.disabled = (accCurrency !== 'USD');
 
-        if (realDollarsNum !== 0 || accCurrency === 'USD') {
-            realSwitch.checked = true;
+        if (eurNum !== 0 || accCurrency === 'EUR') {
+            if (eurFieldDup) eurFieldDup.value = Math.abs(eurNum);
+            applyAccountCurrencyMode('EUR');
+            document.getElementById(eurNum < 0 ? 'type_egreso' : 'type_ingreso').checked = true;
+        } else if (realDollarsNum !== 0 || accCurrency === 'USD') {
             // Si es cuenta USD pero real_dollars es 0, usamos el usdNum original
             if (realDollarsNum === 0 && accCurrency === 'USD') {
                 form.querySelector('[name="real_dollars"]').value = Math.abs(parseFloat(usd.toString().replace(',', '.')) || 0);
@@ -270,6 +356,8 @@ function initTransacciones(config) {
                 form.querySelector('[name="real_dollars"]').value = Math.abs(realDollarsNum);
             }
             document.getElementById('realDollarInputContainer').style.display = 'block';
+            const eurGroupHide = document.getElementById('eurInputGroup');
+            if (eurGroupHide) eurGroupHide.style.display = 'none';
             document.getElementById('dailyRateContainer').style.display = 'none';
             document.getElementById('id_amount_display').parentElement.parentElement.style.display = 'none';
             document.getElementById('currencyToggleBtn').style.display = 'none';
@@ -281,8 +369,9 @@ function initTransacciones(config) {
                 document.getElementById('type_ingreso').checked = true;
             }
         } else {
-            realSwitch.checked = false;
             document.getElementById('realDollarInputContainer').style.display = 'none';
+            const eurGroupBcv = document.getElementById('eurInputGroup');
+            if (eurGroupBcv) eurGroupBcv.style.display = 'none';
             document.getElementById('dailyRateContainer').style.display = 'block';
             document.getElementById('id_amount_display').parentElement.parentElement.style.display = 'block';
             document.getElementById('currencyToggleBtn').style.display = 'inline-block';
@@ -310,16 +399,27 @@ function initTransacciones(config) {
         const feeBsNum = parseFloat((fee_bs || 0).toString().replace(',', '.')) || 0;
         const feeUsdNum = parseFloat((fee_usd || 0).toString().replace(',', '.')) || 0;
         const feeRealNum = parseFloat((fee_real_usd || 0).toString().replace(',', '.')) || 0;
-        
+        const feeEurNum = parseFloat((fee_eur || 0).toString().replace(',', '.')) || 0;
+
         form.querySelector('[name="bank_fee_bs"]').value = feeBsNum;
         form.querySelector('[name="bank_fee_usd"]').value = feeUsdNum;
         form.querySelector('[name="bank_fee_real_usd"]').value = feeRealNum;
+        const eurFeeField = form.querySelector('[name="bank_fee_eur"]');
+        if (eurFeeField) eurFeeField.value = feeEurNum;
 
-        if (feeBsNum > 0 || feeUsdNum > 0 || feeRealNum > 0) {
+        const isEurTx = (eurNum !== 0 || accCurrency === 'EUR');
+
+        if (feeBsNum > 0 || feeUsdNum > 0 || feeRealNum > 0 || feeEurNum > 0) {
             document.getElementById('has_bank_fee').checked = true;
             document.getElementById('bankFeeContainer').style.display = 'block';
-            
-            if (realSwitch.checked) {
+
+            const eurFeeGroup = document.getElementById('eurFeeInputGroup');
+            if (eurFeeGroup) eurFeeGroup.style.display = isEurTx ? 'block' : 'none';
+
+            if (isEurTx) {
+                document.getElementById('bcvFeeInputGroup').style.display = 'none';
+                document.getElementById('realFeeInputGroup').style.display = 'none';
+            } else if (accCurrency === 'USD') {
                 document.getElementById('bcvFeeInputGroup').style.display = 'none';
                 document.getElementById('realFeeInputGroup').style.display = 'block';
             } else {
@@ -546,13 +646,6 @@ function initTransacciones(config) {
         const form = document.querySelector('.cf-filter-form');
         const formData = new URLSearchParams(new FormData(form));
 
-        // Obtener view_mode actual del toggle si existe
-        const activeTab = document.querySelector('.cf-tab.is-active');
-        if (activeTab) {
-            const urlParams = new URLSearchParams(activeTab.getAttribute('href').split('?')[1]);
-            if (urlParams.has('view_mode')) formData.set('view_mode', urlParams.get('view_mode'));
-        }
-
         const url = window.location.pathname + '?' + formData.toString();
 
         fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
@@ -636,25 +729,6 @@ function initTransacciones(config) {
             filterForm.addEventListener('submit', e => e.preventDefault());
         }
 
-        // Toggle de vista AJAX
-        document.querySelectorAll('.cf-tab-group .cf-tab').forEach(tab => {
-            tab.addEventListener('click', function(e) {
-                e.preventDefault();
-                const url = this.getAttribute('href');
-                // Actualizar clases activas localmente
-                this.parentElement.querySelectorAll('.cf-tab').forEach(t => t.classList.remove('is-active'));
-                this.classList.add('is-active');
-                // Mantener sincronizado el input oculto view_mode del form de filtros,
-                // para que cualquier envío del formulario (incl. el listener genérico de base.js) lo respete.
-                const urlParams = new URLSearchParams(url.split('?')[1]);
-                const viewModeInput = document.querySelector('.cf-filter-form input[name="view_mode"]');
-                if (viewModeInput && urlParams.has('view_mode')) {
-                    viewModeInput.value = urlParams.get('view_mode');
-                }
-                updateDashboard();
-            });
-        });
-
         if (!form) return;
 
         const amountDisplay = document.getElementById('id_amount_display');
@@ -667,7 +741,6 @@ function initTransacciones(config) {
         const feeDisplay = document.getElementById('id_bank_fee_display');
         const feeCurrencyToggleBtn = document.getElementById('feeCurrencyToggleBtn');
         const bankFeeContainer = document.getElementById('bankFeeContainer');
-        const realDollarSwitch = document.getElementById('realDollarSwitch');
         const realDollarInputContainer = document.getElementById('realDollarInputContainer');
         const dailyRateContainer = document.getElementById('dailyRateContainer');
         const accountSelect = form.querySelector('select[name="account"]');
@@ -680,30 +753,19 @@ function initTransacciones(config) {
                 // Enable/Disable amount inputs
                 document.getElementById('id_amount_display').disabled = !hasAccount;
                 form.querySelector('input[name="real_dollars"]').disabled = !hasAccount;
+                const eurInput = form.querySelector('input[name="amount_eur"]');
+                if (eurInput) eurInput.disabled = !hasAccount;
                 document.getElementById('has_bank_fee').disabled = !hasAccount;
 
                 if (hasAccount && config.accountsData && config.accountsData[accId]) {
                     const currency = config.accountsData[accId];
-                    const isUSD = (currency === 'USD');
-                    
-                    if (realDollarSwitch) {
-                        realDollarSwitch.checked = isUSD;
-                        realDollarSwitch.disabled = !isUSD;
-                        // Forzar el disparo del evento change para actualizar la UI
-                        realDollarSwitch.dispatchEvent(new Event('change'));
-                    }
-
                     // Sincronizar selectores de moneda con la cuenta
-                    currentInputCurrency = currency;
-                    currentFeeInputCurrency = currency;
-                    updateCurrencyUI();
-                    updateFeeCurrencyUI();
+                    currentInputCurrency = currency === 'BS' ? 'BS' : 'USD';
+                    currentFeeInputCurrency = currentInputCurrency;
+                    applyAccountCurrencyMode(currency);
                 } else {
-                    if (realDollarSwitch) {
-                        realDollarSwitch.checked = false;
-                        realDollarSwitch.disabled = true;
-                        realDollarSwitch.dispatchEvent(new Event('change'));
-                    }
+                    // Sin cuenta seleccionada: se vuelve a la vista BCV por defecto
+                    applyAccountCurrencyMode('BS');
                 }
             });
         }
@@ -714,31 +776,9 @@ function initTransacciones(config) {
             radio.addEventListener('change', function() {
                 syncHiddenFields();
                 syncRealDollarFields();
+                syncEurFields();
             });
         });
-
-        if (realDollarSwitch) {
-            realDollarSwitch.addEventListener('change', function() {
-                const isReal = this.checked;
-                realDollarInputContainer.style.display = isReal ? 'block' : 'none';
-                dailyRateContainer.style.display = isReal ? 'none' : 'block';
-                amountDisplay.parentElement.parentElement.style.display = isReal ? 'none' : 'block';
-                document.getElementById('currencyToggleBtn').style.display = isReal ? 'none' : 'inline-block';
-                amountDisplay.required = !isReal;
-                
-                // Toggle commission inputs based on mode
-                if (hasFeeCheckbox.checked) {
-                    document.getElementById('bcvFeeInputGroup').style.display = isReal ? 'none' : 'block';
-                    document.getElementById('realFeeInputGroup').style.display = isReal ? 'block' : 'none';
-                }
-
-                if (isReal) {
-                    syncRealDollarFields();
-                } else {
-                    syncHiddenFields();
-                }
-            });
-        }
 
         const realDollarsInput = form.querySelector('input[name="real_dollars"]');
         if (realDollarsInput) {
@@ -757,16 +797,27 @@ function initTransacciones(config) {
 
         if (hasFeeCheckbox) {
             hasFeeCheckbox.addEventListener('change', function () {
-                const isReal = realDollarSwitch.checked;
                 bankFeeContainer.style.display = this.checked ? 'block' : 'none';
-                
+
                 if (this.checked) {
-                    document.getElementById('bcvFeeInputGroup').style.display = isReal ? 'none' : 'block';
+                    // La moneda de la cuenta decide qué grupo de comisión se ve.
+                    const accId = accountSelect ? accountSelect.value : '';
+                    const currency = (accId && config.accountsData) ? config.accountsData[accId] : 'BS';
+                    const isReal = currency === 'USD';
+                    const isEur = currency === 'EUR';
+                    document.getElementById('bcvFeeInputGroup').style.display = (isReal || isEur) ? 'none' : 'block';
                     document.getElementById('realFeeInputGroup').style.display = isReal ? 'block' : 'none';
+                    const eurFeeGroup = document.getElementById('eurFeeInputGroup');
+                    if (eurFeeGroup) eurFeeGroup.style.display = isEur ? 'block' : 'none';
                 }
 
                 syncFeeHiddenFields();
             });
+        }
+
+        const eurAmountInput = form.querySelector('input[name="amount_eur"]');
+        if (eurAmountInput) {
+            eurAmountInput.addEventListener('input', syncEurFields);
         }
 
         if (feeDisplay) {
@@ -788,6 +839,13 @@ function initTransacciones(config) {
         }
 
         function toggleAllCurrencies() {
+            // Solo tiene sentido en cuentas en bolívares: es la conversión
+            // Bs.<->USD por la tasa BCV. Las cuentas en dólares o euros no
+            // tienen segunda moneda que mostrar.
+            const accId = accountSelect ? accountSelect.value : '';
+            const accCurrency = (accId && config.accountsData) ? config.accountsData[accId] : null;
+            if (accCurrency === 'USD' || accCurrency === 'EUR') return;
+
             const amountVal = parseFloat(amountDisplay.value) || 0;
             const feeVal = parseFloat(feeDisplay.value) || 0;
             const rate = parseFloat(dailyRateField.value) || 1;
@@ -831,20 +889,32 @@ function initTransacciones(config) {
 
         if (form) {
             form.addEventListener('submit', function (e) {
-                const isReal = document.getElementById('realDollarSwitch').checked;
-                const amount = isReal ? (parseFloat(realDollarsInput.value) || 0) : (parseFloat(amountDisplay.value) || 0);
-                
+                const accId = accountSelect ? accountSelect.value : '';
+                const accCurrency = (accId && config.accountsData) ? config.accountsData[accId] : 'BS';
+                const isReal = accCurrency === 'USD';
+                const isEur = accCurrency === 'EUR';
+                const eurInput = form.querySelector('input[name="amount_eur"]');
+
+                let amount;
+                if (isReal) amount = parseFloat(realDollarsInput.value) || 0;
+                else if (isEur) amount = parseFloat(eurInput ? eurInput.value : '') || 0;
+                else amount = parseFloat(amountDisplay.value) || 0;
+
                 if (amount === 0) {
                     e.preventDefault();
                     alert('El monto de la transacción no puede ser cero.');
                     return;
                 }
 
+                const isEgreso = document.getElementById('type_egreso').checked;
                 if (isReal) {
-                    const isEgreso = document.getElementById('type_egreso').checked;
                     let finalVal = Math.abs(parseFloat(realDollarsInput.value));
                     if (isEgreso) finalVal = -finalVal;
                     realDollarsInput.value = finalVal;
+                } else if (isEur && eurInput) {
+                    let finalVal = Math.abs(parseFloat(eurInput.value));
+                    if (isEgreso) finalVal = -finalVal;
+                    eurInput.value = finalVal;
                 }
 
                 if (dailyRateField) dailyRateField.disabled = false;

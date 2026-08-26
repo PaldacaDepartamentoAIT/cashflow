@@ -26,9 +26,11 @@ class OrganizationAccess(models.Model):
 class Account(models.Model):
     CURRENCY_BS = 'BS'
     CURRENCY_USD = 'USD'
+    CURRENCY_EUR = 'EUR'
     CURRENCY_CHOICES = [
         (CURRENCY_BS, 'Bolívares'),
         (CURRENCY_USD, 'Dólares'),
+        (CURRENCY_EUR, 'Euros'),
     ]
 
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='accounts', verbose_name="Organización")
@@ -152,8 +154,11 @@ class Transaction(models.Model):
     bank_fee_bs = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="Comisión bancaria (Bs)")
     bank_fee_usd = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="Comisión bancaria ($)")
     
-    real_dollars = models.DecimalField(max_digits=20, decimal_places=2, blank=True, null=True, verbose_name="Dólares reales")
-    bank_fee_real_usd = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="Comisión dólares reales ($)")
+    real_dollars = models.DecimalField(max_digits=20, decimal_places=2, blank=True, null=True, verbose_name="Dólares")
+    bank_fee_real_usd = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="Comisión dólares ($)")
+
+    amount_eur = models.DecimalField(max_digits=20, decimal_places=2, blank=True, null=True, verbose_name="Euros")
+    bank_fee_eur = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="Comisión euros (€)")
 
     class Meta:
         verbose_name = "Transacción"

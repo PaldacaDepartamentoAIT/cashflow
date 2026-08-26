@@ -2,7 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db import models
 from .models import Transaction, Category, Account, Project, Valuation, Organization, CostCenter
-from .amounts import apply_dual_currency_amounts
+from .amounts import apply_dual_currency_amounts, zero_foreign_currency_fields
 from .banks import build_account_display_name, validate_bank_for_currency
 from .validators import validate_account_number, validate_holder, validate_rif
 
@@ -13,7 +13,8 @@ class TransactionForm(forms.ModelForm):
             'date', 'organization', 'account', 'reference_number', 'description', 
             'notes', 'categories', 'cost_center', 'project', 'valuation', 
             'status', 'amount_bs', 'amount_usd', 'daily_rate',
-            'bank_fee_bs', 'bank_fee_usd', 'real_dollars', 'bank_fee_real_usd'
+            'bank_fee_bs', 'bank_fee_usd', 'real_dollars', 'bank_fee_real_usd',
+            'amount_eur', 'bank_fee_eur'
         ]
         widgets = {
             'date': forms.DateInput(attrs={'class': 'cf-input', 'type': 'date', 'required': 'required'}),
@@ -34,7 +35,14 @@ class TransactionForm(forms.ModelForm):
             'bank_fee_usd': forms.NumberInput(attrs={'class': 'cf-input', 'step': '0.01', 'type': 'number'}),
             'real_dollars': forms.NumberInput(attrs={'class': 'cf-input', 'step': '0.01', 'type': 'number'}),
             'bank_fee_real_usd': forms.NumberInput(attrs={'class': 'cf-input', 'step': '0.01', 'type': 'number'}),
+            'amount_eur': forms.NumberInput(attrs={'class': 'cf-input', 'step': '0.01', 'type': 'number'}),
+            'bank_fee_eur': forms.NumberInput(attrs={'class': 'cf-input', 'step': '0.01', 'type': 'number'}),
         }
+
+    def clean_bank_fee_eur(self):
+        # La comisión en euros es opcional: no obligamos a escribir un 0 en cada
+        # transacción que no la tenga (el modelo tampoco acepta NULL).
+        return self.cleaned_data.get('bank_fee_eur') or 0
 
     def clean(self):
         cleaned_data = super().clean()
@@ -44,11 +52,13 @@ class TransactionForm(forms.ModelForm):
 
         real_dollars = cleaned_data.get('real_dollars') or 0
         bank_fee_real_usd = cleaned_data.get('bank_fee_real_usd') or 0
-        
+        amount_eur = cleaned_data.get('amount_eur') or 0
+        bank_fee_eur = cleaned_data.get('bank_fee_eur') or 0
+
         # Si la cuenta es en dólares, forzar el uso de real_dollars
         if account.currency == Account.CURRENCY_USD:
             amount_usd_bcv = cleaned_data.get('amount_usd') or 0
-            
+
             # Si el usuario mandó el monto en el campo BCV por error, lo movemos a real_dollars
             if real_dollars == 0 and amount_usd_bcv != 0:
                 real_dollars = amount_usd_bcv
@@ -57,28 +67,55 @@ class TransactionForm(forms.ModelForm):
             if real_dollars == 0:
                 raise ValidationError(
                     "Esta cuenta está denominada en dólares: solo puede recibir o registrar movimientos "
-                    "en el campo 'Dólares Reales'. Los campos de Bolívares o Dólares BCV no aplican para "
-                    "este tipo de cuenta."
+                    "en el campo 'Dólares'. Los campos de Bolívares, Dólares BCV o Euros no aplican "
+                    "para este tipo de cuenta."
                 )
 
-            cleaned_data['amount_bs'] = 0
-            cleaned_data['amount_usd'] = 0
-            cleaned_data['bank_fee_bs'] = 0
-            cleaned_data['bank_fee_usd'] = 0
-            # Mantenemos bank_fee_real_usd tal cual viene del form
-        
+            # Cera Bs., USD-BCV y euros; conserva real_dollars/bank_fee_real_usd.
+            zero_foreign_currency_fields(cleaned_data, Account.CURRENCY_USD)
+            cleaned_data['real_dollars'] = real_dollars
+            cleaned_data['bank_fee_real_usd'] = bank_fee_real_usd
+
+        elif account.currency == Account.CURRENCY_EUR:
+            amount_usd_bcv = cleaned_data.get('amount_usd') or 0
+
+            # Mismo rescate que en dólares: monto puesto en el campo BCV por error
+            if amount_eur == 0 and amount_usd_bcv != 0:
+                amount_eur = amount_usd_bcv
+                cleaned_data['amount_eur'] = amount_eur
+
+            if amount_eur == 0:
+                raise ValidationError(
+                    "Esta cuenta está denominada en euros: solo puede recibir o registrar movimientos "
+                    "en el campo 'Euros'. Los campos de Bolívares, Dólares BCV o Dólares no aplican "
+                    "para este tipo de cuenta."
+                )
+
+            zero_foreign_currency_fields(cleaned_data, Account.CURRENCY_EUR)
+            cleaned_data['amount_eur'] = amount_eur
+            cleaned_data['bank_fee_eur'] = bank_fee_eur
+
         else:
             # CUENTA EN BOLÍVARES: Solo BCV
             if real_dollars != 0 or bank_fee_real_usd != 0:
                 raise ValidationError(
                     "Esta cuenta está denominada en bolívares: los movimientos deben registrarse "
                     "mediante el tipo de cambio BCV (campos de Bolívares o Dólares BCV). El campo "
-                    "'Dólares Reales' solo aplica a cuentas en dólares."
+                    "'Dólares' solo aplica a cuentas en dólares."
                 )
-            
+
+            if amount_eur != 0 or bank_fee_eur != 0:
+                raise ValidationError(
+                    "Esta cuenta está denominada en bolívares: los movimientos deben registrarse "
+                    "mediante el tipo de cambio BCV (campos de Bolívares o Dólares BCV). El campo "
+                    "'Euros' solo aplica a cuentas en euros."
+                )
+
             cleaned_data['real_dollars'] = 0
             cleaned_data['bank_fee_real_usd'] = 0
-            
+            cleaned_data['amount_eur'] = 0
+            cleaned_data['bank_fee_eur'] = 0
+
             amount_bs = cleaned_data.get('amount_bs') or 0
             amount_usd = cleaned_data.get('amount_usd') or 0
             daily_rate = cleaned_data.get('daily_rate') or 1
@@ -113,6 +150,10 @@ class TransactionForm(forms.ModelForm):
         
         # Estado por defecto: Completado
         self.fields['status'].initial = 'completado'
+
+        # La comisión en euros solo aplica a cuentas en euros; se omite en el
+        # resto de los formularios en lugar de exigir un 0 explícito.
+        self.fields['bank_fee_eur'].required = False
         
         if project:
             # Si estamos en un proyecto, restringir organizaciones a las que tienen acceso

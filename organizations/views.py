@@ -24,64 +24,54 @@ from CashFlow.debug import debug_event, first_form_error
 from BCV.services.bcv_scrapper import as_dashboard_rates, get_rate_for_date
 
 
+#: Columna de monto y de comisión que alimenta los gráficos en cada modo de vista.
+#: 'bcv' usa el equivalente BCV en USD de las cuentas en Bs.; 'real' y 'eur' usan
+#: la columna propia de las cuentas en dólares y en euros respectivamente.
+CHART_MODE_FIELDS = {
+    'real': ('real_dollars', 'bank_fee_real_usd'),
+    'eur': ('amount_eur', 'bank_fee_eur'),
+    'bcv': ('amount_usd', 'bank_fee_usd'),
+}
+
+
 def get_chart_data(transactions_qs, mode='bcv', json_format=True):
+    amount_field, fee_field = CHART_MODE_FIELDS.get(mode, CHART_MODE_FIELDS['bcv'])
+    negative = {f'{amount_field}__lt': 0}
+
     # 1. Desglose de Gastos por Categoría
-    if mode == 'real':
-        category_spending = transactions_qs.filter(real_dollars__lt=0).values('categories__name', 'categories__color').annotate(
-            total=Sum('real_dollars')
-        ).order_by('total')
-    else:
-        category_spending = transactions_qs.filter(amount_usd__lt=0).values('categories__name', 'categories__color').annotate(
-            total=Sum('amount_usd')
-        ).order_by('total')
-    
+    category_spending = transactions_qs.filter(**negative).values('categories__name', 'categories__color').annotate(
+        total=Sum(amount_field)
+    ).order_by('total')
+
     cat_labels = [item['categories__name'] or 'Sin categoría' for item in category_spending]
     cat_series = [float(abs(item['total'] or 0)) for item in category_spending]
     cat_colors = [item['categories__color'] or '#000000' for item in category_spending]
 
     # 2. Gastos por Centro de Costo (Porcentajes)
-    if mode == 'real':
-        cost_center_spending = transactions_qs.filter(real_dollars__lt=0, cost_center__isnull=False).values('cost_center__name').annotate(
-            total=Sum('real_dollars')
-        ).order_by('total')
-    else:
-        cost_center_spending = transactions_qs.filter(amount_usd__lt=0, cost_center__isnull=False).values('cost_center__name').annotate(
-            total=Sum('amount_usd')
-        ).order_by('total')
-    
+    cost_center_spending = transactions_qs.filter(cost_center__isnull=False, **negative).values('cost_center__name').annotate(
+        total=Sum(amount_field)
+    ).order_by('total')
+
     cc_labels = [item['cost_center__name'] or 'Sin centro de costo' for item in cost_center_spending]
     cc_values = [float(abs(item['total'] or 0)) for item in cost_center_spending]
     total_expense_cc = sum(cc_values)
     cc_percentages = [(v / total_expense_cc * 100) if total_expense_cc > 0 else 0 for v in cc_values]
 
     # 2. Balance Total (Ingresos vs Gastos)
-    if mode == 'real':
-        totals_data = transactions_qs.aggregate(
-            income=Sum('real_dollars', filter=Q(real_dollars__gt=0)),
-            expense=Sum('real_dollars', filter=Q(real_dollars__lt=0)),
-            fees=Sum('bank_fee_real_usd')
-        )
-        total_income = float(totals_data['income'] or 0)
-        total_expense = float(abs(totals_data['expense'] or 0)) + float(totals_data['fees'] or 0)
-    else:
-        totals_data = transactions_qs.aggregate(
-            income=Sum('amount_usd', filter=Q(amount_usd__gt=0)),
-            expense=Sum('amount_usd', filter=Q(amount_usd__lt=0)),
-            fees=Sum('bank_fee_usd')
-        )
-        total_income = float(totals_data['income'] or 0)
-        total_expense = float(abs(totals_data['expense'] or 0)) + float(totals_data['fees'] or 0)
+    totals_data = transactions_qs.aggregate(
+        income=Sum(amount_field, filter=Q(**{f'{amount_field}__gt': 0})),
+        expense=Sum(amount_field, filter=Q(**negative)),
+        fees=Sum(fee_field)
+    )
+    total_income = float(totals_data['income'] or 0)
+    total_expense = float(abs(totals_data['expense'] or 0)) + float(totals_data['fees'] or 0)
 
     # 3. Evolución del Saldo
-    if mode == 'real':
-        evolution_data = transactions_qs.order_by('date').values('date').annotate(
-            daily_sum=Sum(F('real_dollars') - F('bank_fee_real_usd'))
-        )
-    else:
-        evolution_data = transactions_qs.order_by('date').values('date').annotate(
-            daily_sum=Sum(F('amount_usd') - F('bank_fee_usd'))
-        )
-    
+    evolution_data = transactions_qs.order_by('date').values('date').annotate(
+        daily_sum=Sum(F(amount_field) - F(fee_field))
+    )
+
+
     evo_labels = []
     evo_series = []
     current_balance = 0
@@ -138,51 +128,119 @@ def seleccionar_organizacion(request, org_id):
     request.session['org_name'] = org.name
     return redirect('home_organizacion')
 
-def get_filtered_totals_both(org_id, filter_type):
-    now = timezone.now()
-    transactions = Transaction.objects.filter(organization_id=org_id)
-    
-    if filter_type == 'day':
-        start_date = now - timedelta(days=1)
-        transactions = transactions.filter(date__gte=start_date)
-    elif filter_type == 'week':
-        start_date = now - timedelta(weeks=1)
-        transactions = transactions.filter(date__gte=start_date)
-    elif filter_type == '15days':
-        start_date = now - timedelta(days=15)
-        transactions = transactions.filter(date__gte=start_date)
-    elif filter_type == 'month':
-        start_date = now - timedelta(days=30)
-        transactions = transactions.filter(date__gte=start_date)
-    elif filter_type == '3months':
-        start_date = now - timedelta(days=90)
-        transactions = transactions.filter(date__gte=start_date)
-    elif filter_type == '6months':
-        start_date = now - timedelta(days=180)
-        transactions = transactions.filter(date__gte=start_date)
-    elif filter_type == 'year':
-        start_date = now - timedelta(days=365)
-        transactions = transactions.filter(date__gte=start_date)
+#: Las cuatro "pistas" de dinero, como (sufijo de contexto, columna de monto,
+#: columna de comisión). 'bs' y 'usd' son las dos caras de una cuenta en
+#: bolívares (monto y su equivalente BCV); 'real_usd' y 'eur' son las columnas
+#: propias de las cuentas en dólares y en euros.
+CURRENCY_TRACKS = (
+    ('bs', 'amount_bs', 'bank_fee_bs'),
+    ('usd', 'amount_usd', 'bank_fee_usd'),
+    ('real_usd', 'real_dollars', 'bank_fee_real_usd'),
+    ('eur', 'amount_eur', 'bank_fee_eur'),
+)
 
-    res = transactions.aggregate(
-        income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-        expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-        fees_usd=Sum('bank_fee_usd'),
-        income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-        expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-        fees_bs=Sum('bank_fee_bs'),
-        income_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-        expense_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-        fees_real_usd=Sum('bank_fee_real_usd')
+#: Ventanas de tiempo de los filtros de período, en días.
+FILTER_WINDOW_DAYS = {
+    'day': 1, 'week': 7, '15days': 15, 'month': 30,
+    '3months': 90, '6months': 180, 'year': 365,
+}
+
+
+def balance_aggregates(prefix=''):
+    """Kwargs de agregación del saldo de cada moneda (monto menos comisión).
+
+    `prefix` permite atravesar una relación inversa, p. ej. 'transactions__'
+    al anotar cuentas o proyectos.
+    """
+    return {
+        f'balance_{suffix}': Sum(F(f'{prefix}{amount}') - F(f'{prefix}{fee}'))
+        for suffix, amount, fee in CURRENCY_TRACKS
+    }
+
+
+def currency_totals(queryset, with_count=False):
+    """Ingresos y gastos de cada moneda. Las comisiones se suman al gasto y el
+    signo del gasto se normaliza a positivo, igual que en el resto de los KPIs."""
+    aggregates = {}
+    for suffix, amount, fee in CURRENCY_TRACKS:
+        aggregates[f'income_{suffix}'] = Sum(amount, filter=models.Q(**{f'{amount}__gt': 0}))
+        aggregates[f'expense_{suffix}'] = Sum(amount, filter=models.Q(**{f'{amount}__lt': 0}))
+        aggregates[f'fees_{suffix}'] = Sum(fee)
+    if with_count:
+        aggregates['count'] = Count('id')
+
+    res = queryset.aggregate(**aggregates)
+
+    totals = {}
+    for suffix, _, _ in CURRENCY_TRACKS:
+        totals[f'income_{suffix}'] = res[f'income_{suffix}'] or 0
+        totals[f'expense_{suffix}'] = abs(res[f'expense_{suffix}'] or 0) + (res[f'fees_{suffix}'] or 0)
+    if with_count:
+        totals['count'] = res['count']
+    return totals
+
+
+def apply_period_filter(queryset, filter_val, today=None):
+    """Recorta el queryset a la ventana del filtro de período ('all' no filtra)."""
+    days = FILTER_WINDOW_DAYS.get(filter_val)
+    if not days:
+        return queryset
+    start_date = (today or timezone.localdate()) - timedelta(days=days)
+    return queryset.filter(date__gte=start_date)
+
+
+def project_totals_context(totals, pending_totals):
+    """KPIs de un proyecto, en la forma que esperan sus plantillas.
+
+    Cada moneda se reporta por separado — BCV, dólares reales y euros no se
+    suman ni se convierten entre sí; la plantilla muestra los bloques según las
+    monedas en las que el proyecto tiene cuentas.
+    """
+    context = {}
+    for prefix, source in (('', totals), ('pending_', pending_totals)):
+        for suffix in ('bs', 'usd', 'real_usd', 'eur'):
+            context[f'{prefix}balance_{suffix}'] = source[f'balance_{suffix}'] or 0
+            context[f'{prefix}income_{suffix}'] = source[f'income_{suffix}']
+            context[f'{prefix}expense_{suffix}'] = source[f'expense_{suffix}']
+    return context
+
+
+def filter_by_track(queryset, track):
+    """Aísla las transacciones de una sola pista de moneda.
+
+    Las de cuentas en bolívares ('bcv') son, por descarte, las que no tienen ni
+    dólares reales ni euros — el mismo criterio que ya usaba el filtro BCV/Real.
+    """
+    if track == 'real':
+        return queryset.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
+    if track == 'eur':
+        return queryset.exclude(models.Q(amount_eur=0) | models.Q(amount_eur__isnull=True))
+    return queryset.filter(
+        (models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
+        & (models.Q(amount_eur=0) | models.Q(amount_eur__isnull=True))
     )
 
+
+def organization_currencies(org_id):
+    """Monedas en las que la organización tiene cuentas abiertas."""
+    return set(
+        Account.objects.filter(organization_id=org_id)
+        .values_list('currency', flat=True)
+        .distinct()
+    )
+
+
+def currency_flags(currencies):
+    """Banderas de plantilla para mostrar u ocultar cada bloque de moneda.
+
+    Si todavía no hay ninguna cuenta se muestra el bloque en bolívares, para no
+    dejar el card de saldos vacío en una organización recién creada.
+    """
+    currencies = set(currencies)
     return {
-        'income_usd': res['income_usd'] or 0,
-        'expense_usd': abs(res['expense_usd'] or 0) + (res['fees_usd'] or 0),
-        'income_bs': res['income_bs'] or 0,
-        'expense_bs': abs(res['expense_bs'] or 0) + (res['fees_bs'] or 0),
-        'income_real_usd': res['income_real_usd'] or 0,
-        'expense_real_usd': abs(res['expense_real_usd'] or 0) + (res['fees_real_usd'] or 0),
+        'has_bs': Account.CURRENCY_BS in currencies or not currencies,
+        'has_usd': Account.CURRENCY_USD in currencies,
+        'has_eur': Account.CURRENCY_EUR in currencies,
     }
 
 def get_bcv_rate(target_date=None):
@@ -217,75 +275,33 @@ def home_organizacion(request):
     if not org_id:
         return redirect('dashboard')
     
-    view_mode = request.GET.get('view_mode', 'bcv') # 'bcv' or 'real'
-    
-    totals = Transaction.objects.filter(organization_id=org_id).aggregate(
-        balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-        balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        balance_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd'))
-    )
+    # Selector de moneda de los gráficos. Es el único de la aplicación: los KPIs
+    # muestran todas las monedas a la vez y el resto de las secciones no lo tienen.
+    view_mode = request.GET.get('view_mode', 'bcv') # 'bcv', 'real' o 'eur'
+
+    totals = Transaction.objects.filter(organization_id=org_id).aggregate(**balance_aggregates())
 
     pending_totals = Transaction.objects.filter(organization_id=org_id, status='pendiente').aggregate(
-        balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-        balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        balance_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-        count=Count('id')
+        count=Count('id'), **balance_aggregates()
     )
     has_pending = pending_totals['count'] > 0
 
     income_filter = request.GET.get('income_filter', 'all')
     expense_filter = request.GET.get('expense_filter', 'all')
 
-    def get_filtered_totals_by_mode(filter_val, mode, status=None):
+    def get_filtered_totals(filter_val, status=None):
         transactions = Transaction.objects.filter(organization_id=org_id)
         if status:
             transactions = transactions.filter(status=status)
-        today = timezone.localdate()
-        if filter_val != 'all':
-            if filter_val == 'day': start_date = today - timedelta(days=1)
-            elif filter_val == 'week': start_date = today - timedelta(days=7)
-            elif filter_val == '15days': start_date = today - timedelta(days=15)
-            elif filter_val == 'month': start_date = today - timedelta(days=30)
-            elif filter_val == '3months': start_date = today - timedelta(days=90)
-            elif filter_val == '6months': start_date = today - timedelta(days=180)
-            elif filter_val == 'year': start_date = today - timedelta(days=365)
-            transactions = transactions.filter(date__gte=start_date)
+        transactions = apply_period_filter(transactions, filter_val)
+        return currency_totals(transactions, with_count=True)
 
-        if mode == 'real':
-            res = transactions.aggregate(
-                income=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-                expense=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-                fees=Sum('bank_fee_real_usd'),
-                count=Count('id')
-            )
-            return {
-                'income': res['income'] or 0,
-                'expense': abs(res['expense'] or 0) + (res['fees'] or 0),
-                'count': res['count'],
-            }
-        else:
-            res = transactions.aggregate(
-                income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-                expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-                fees_usd=Sum('bank_fee_usd'),
-                income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-                expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-                fees_bs=Sum('bank_fee_bs'),
-                count=Count('id')
-            )
-            return {
-                'income_usd': res['income_usd'] or 0,
-                'expense_usd': abs(res['expense_usd'] or 0) + (res['fees_usd'] or 0),
-                'income_bs': res['income_bs'] or 0,
-                'expense_bs': abs(res['expense_bs'] or 0) + (res['fees_bs'] or 0),
-                'count': res['count'],
-            }
+    inc_totals = get_filtered_totals(income_filter)
+    exp_totals = get_filtered_totals(expense_filter)
+    inc_pending_totals = get_filtered_totals(income_filter, status='pendiente')
+    exp_pending_totals = get_filtered_totals(expense_filter, status='pendiente')
 
-    inc_totals = get_filtered_totals_by_mode(income_filter, view_mode)
-    exp_totals = get_filtered_totals_by_mode(expense_filter, view_mode)
-    inc_pending_totals = get_filtered_totals_by_mode(income_filter, view_mode, status='pendiente')
-    exp_pending_totals = get_filtered_totals_by_mode(expense_filter, view_mode, status='pendiente')
-    
+
     try:
         rates = as_dashboard_rates()
     except Exception:
@@ -301,35 +317,38 @@ def home_organizacion(request):
     
     # Filtrar chart_data por el modo seleccionado
     base_qs = Transaction.objects.filter(organization_id=org_id)
-    if view_mode == 'real':
-        chart_qs = base_qs.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-    else:
-        chart_qs = base_qs.filter(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-        
+    chart_qs = filter_by_track(base_qs, view_mode)
+
     chart_data = get_chart_data(chart_qs, mode=view_mode)
-    
+
     context = {
         'view_mode': view_mode,
         'balance_usd': totals['balance_usd'] or 0,
         'balance_bs': totals['balance_bs'] or 0,
         'balance_real_usd': totals['balance_real_usd'] or 0,
-        'income_usd': inc_totals.get('income_usd', 0),
-        'income_bs': inc_totals.get('income_bs', 0),
-        'income_real_usd': inc_totals.get('income', 0),
-        'expense_usd': exp_totals.get('expense_usd', 0),
-        'expense_bs': exp_totals.get('expense_bs', 0),
-        'expense_real_usd': exp_totals.get('expense', 0),
+        'balance_eur': totals['balance_eur'] or 0,
+        'income_usd': inc_totals['income_usd'],
+        'income_bs': inc_totals['income_bs'],
+        'income_real_usd': inc_totals['income_real_usd'],
+        'income_eur': inc_totals['income_eur'],
+        'expense_usd': exp_totals['expense_usd'],
+        'expense_bs': exp_totals['expense_bs'],
+        'expense_real_usd': exp_totals['expense_real_usd'],
+        'expense_eur': exp_totals['expense_eur'],
         'has_pending': has_pending,
         'pending_balance_usd': pending_totals['balance_usd'] or 0,
         'pending_balance_bs': pending_totals['balance_bs'] or 0,
         'pending_balance_real_usd': pending_totals['balance_real_usd'] or 0,
-        'pending_income_usd': inc_pending_totals.get('income_usd', 0),
-        'pending_income_bs': inc_pending_totals.get('income_bs', 0),
-        'pending_income_real_usd': inc_pending_totals.get('income', 0),
+        'pending_balance_eur': pending_totals['balance_eur'] or 0,
+        'pending_income_usd': inc_pending_totals['income_usd'],
+        'pending_income_bs': inc_pending_totals['income_bs'],
+        'pending_income_real_usd': inc_pending_totals['income_real_usd'],
+        'pending_income_eur': inc_pending_totals['income_eur'],
         'pending_income_count': inc_pending_totals.get('count', 0),
-        'pending_expense_usd': exp_pending_totals.get('expense_usd', 0),
-        'pending_expense_bs': exp_pending_totals.get('expense_bs', 0),
-        'pending_expense_real_usd': exp_pending_totals.get('expense', 0),
+        'pending_expense_usd': exp_pending_totals['expense_usd'],
+        'pending_expense_bs': exp_pending_totals['expense_bs'],
+        'pending_expense_real_usd': exp_pending_totals['expense_real_usd'],
+        'pending_expense_eur': exp_pending_totals['expense_eur'],
         'pending_expense_count': exp_pending_totals.get('count', 0),
         'income_filter': income_filter,
         'expense_filter': expense_filter,
@@ -349,6 +368,7 @@ def home_organizacion(request):
             ('all', 'Desde el principio'),
         ]
     }
+    context.update(currency_flags(organization_currencies(org_id)))
     return render(request, 'organizations/home.html', context)
 
 @login_required
@@ -389,15 +409,7 @@ from reportlab.lib.units import cm
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.chart import PieChart, BarChart, LineChart, Reference
-from openpyxl.chart.marker import DataPoint
-from openpyxl.chart.shapes import GraphicalProperties
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-from reportlab.graphics.shapes import Drawing, String
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.charts.barcharts import VerticalBarChart
-from reportlab.graphics.charts.linecharts import HorizontalLineChart
-from reportlab.graphics.widgets.markers import makeMarker
 from reportlab.lib import colors
 
 @login_required
@@ -424,16 +436,8 @@ def lista_transacciones(request):
     project_id = request.GET.get('project')
     account_id = request.GET.get('account')
     search_query = request.GET.get('search', '')
-    tx_filter = request.GET.get('tx_filter', 'all') # 'all', 'bcv', 'real'
-    view_mode = request.GET.get('view_mode', 'bcv') # 'bcv' or 'real'
+    tx_filter = request.GET.get('tx_filter', 'all') # 'all', 'bcv', 'real', 'eur'
     status_filter = request.GET.get('status', '') # 'completado', 'pendiente', ''
-
-    # Sincronización: El filtro de transacciones afecta al toggle de balance
-    if tx_filter == 'real':
-        view_mode = 'real'
-    elif tx_filter == 'bcv':
-        view_mode = 'bcv'
-    # Si es 'all', se mantiene el view_mode que venga en el GET (o el default)
 
     # Sanitizar valores 'None' que pueden venir de la URL
     if date_from == 'None': date_from = None
@@ -445,12 +449,11 @@ def lista_transacciones(request):
     # Base: TODAS las transacciones para la tabla
     transactions_list = Transaction.objects.filter(organization=org)
 
-    # Filtrar por tipo de transacción (BCV / Real Dollars)
-    if tx_filter == 'real':
-        transactions_list = transactions_list.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-    elif tx_filter == 'bcv':
-        transactions_list = transactions_list.filter(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-    
+    # Filtrar por tipo de transacción (BCV / Dólares reales / Euros)
+    if tx_filter in ('real', 'bcv', 'eur'):
+        transactions_list = filter_by_track(transactions_list, tx_filter)
+
+
     if search_query:
         # OJO: el lookup categories__name atraviesa una relación M2M, lo que puede
         # multiplicar filas si la transacción tiene más de una categoría (aparecería
@@ -469,6 +472,7 @@ def lista_transacciones(request):
             models.Q(amount_bs__icontains=search_query) |
             models.Q(amount_usd__icontains=search_query) |
             models.Q(real_dollars__icontains=search_query) |
+            models.Q(amount_eur__icontains=search_query) |
             models.Q(daily_rate__icontains=search_query)
         ).distinct()
 
@@ -527,73 +531,23 @@ def lista_transacciones(request):
     else:
         transactions_list = transactions_list.order_by('-date', '-id')
 
-    # --- Calcular totales filtrados basados en view_mode para los KPIs ---
-    if view_mode == 'real':
-        kpi_qs = transactions_list.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-        totals = kpi_qs.aggregate(
-            balance=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-            income=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-            expense=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-            fees=Sum('bank_fee_real_usd')
-        )
-        res_totals = {
-            'balance_real_usd': totals['balance'] or 0,
-            'income_real_usd': totals['income'] or 0,
-            'expense_real_usd': abs(totals['expense'] or 0) + (totals['fees'] or 0),
-        }
-    else:
-        kpi_qs = transactions_list.filter(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-        totals = kpi_qs.aggregate(
-            balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-            balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-            income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-            income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-            expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-            expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-            fees_usd=Sum('bank_fee_usd'),
-            fees_bs=Sum('bank_fee_bs')
-        )
-        res_totals = {
-            'balance_usd': totals['balance_usd'] or 0,
-            'balance_bs': totals['balance_bs'] or 0,
-            'income_usd': totals['income_usd'] or 0,
-            'income_bs': totals['income_bs'] or 0,
-            'expense_usd': abs(totals['expense_usd'] or 0) + (totals['fees_usd'] or 0),
-            'expense_bs': abs(totals['expense_bs'] or 0) + (totals['fees_bs'] or 0),
-        }
+    # --- Totales filtrados para los KPIs: siempre todas las monedas ---
+    # Sin toggle, los KPIs se calculan sobre el queryset filtrado completo y
+    # exponen siempre las mismas claves; la plantilla decide qué bloques mostrar
+    # según las monedas en las que la organización tiene cuentas.
+    balances = transactions_list.aggregate(**balance_aggregates())
+    res_totals = {key: value or 0 for key, value in balances.items()}
+    res_totals.update(currency_totals(transactions_list))
 
     # --- Saldo pendiente: mismos filtros aplicados (excepto estado), solo transacciones 'pendiente' ---
     has_pending = pending_qs_base.exists()
-    if view_mode == 'real':
-        pending_kpi_qs = pending_qs_base.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-        pending_totals_raw = pending_kpi_qs.aggregate(
-            balance=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-            income=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-            expense=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-            fees=Sum('bank_fee_real_usd')
-        )
-        res_totals['pending_balance_real_usd'] = pending_totals_raw['balance'] or 0
-        res_totals['pending_income_real_usd'] = pending_totals_raw['income'] or 0
-        res_totals['pending_expense_real_usd'] = abs(pending_totals_raw['expense'] or 0) + (pending_totals_raw['fees'] or 0)
-    else:
-        pending_kpi_qs = pending_qs_base.filter(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-        pending_totals_raw = pending_kpi_qs.aggregate(
-            balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-            balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-            income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-            income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-            expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-            expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-            fees_usd=Sum('bank_fee_usd'),
-            fees_bs=Sum('bank_fee_bs')
-        )
-        res_totals['pending_balance_usd'] = pending_totals_raw['balance_usd'] or 0
-        res_totals['pending_balance_bs'] = pending_totals_raw['balance_bs'] or 0
-        res_totals['pending_income_usd'] = pending_totals_raw['income_usd'] or 0
-        res_totals['pending_income_bs'] = pending_totals_raw['income_bs'] or 0
-        res_totals['pending_expense_usd'] = abs(pending_totals_raw['expense_usd'] or 0) + (pending_totals_raw['fees_usd'] or 0)
-        res_totals['pending_expense_bs'] = abs(pending_totals_raw['expense_bs'] or 0) + (pending_totals_raw['fees_bs'] or 0)
-    
+    pending_balances = pending_qs_base.aggregate(**balance_aggregates())
+    for key, value in pending_balances.items():
+        res_totals[f'pending_{key}'] = value or 0
+    for key, value in currency_totals(pending_qs_base).items():
+        res_totals[f'pending_{key}'] = value
+
+
     paginator = Paginator(transactions_list, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -633,7 +587,6 @@ def lista_transacciones(request):
         'date_to': date_to,
         'search': search_query,
         'sort': sort,
-        'view_mode': view_mode,
         'tx_filter': tx_filter,
         'status_filter': status_filter,
         'totals': res_totals,
@@ -641,7 +594,8 @@ def lista_transacciones(request):
         'tx_filter_options': [
             ('all', 'Todas las transacciones'),
             ('bcv', 'Transacciones BCV'),
-            ('real', 'Transacciones Dólares Reales'),
+            ('real', 'Transacciones Dólares'),
+            ('eur', 'Transacciones Euros'),
         ],
         'status_filter_options': [
             ('', 'Todos los estados'),
@@ -659,7 +613,8 @@ def lista_transacciones(request):
             ('year', 'Último año'),
             ('all', 'Todo el tiempo'),
             ('custom', 'Personalizado'),
-        ]
+        ],
+        **currency_flags(a.currency for a in accounts_qs)
     })
 
 @login_required
@@ -715,16 +670,12 @@ def _get_report_data(request):
     if account_id:
         transactions = transactions.filter(account_id=account_id)
     
-    # Filtrar por tipo de reporte: BCV o Dólares Reales (Filtro base del PDF)
-    if report_type == 'real':
-        transactions = transactions.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-    else:
-        transactions = transactions.filter(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-    
-    # Aplicar tx_filter adicional si viene de la URL (para coincidir con la vista web)
-    if tx_filter == 'real' and report_type == 'bcv':
-        transactions = transactions.none()
-    elif tx_filter == 'bcv' and report_type == 'real':
+    # Filtrar por tipo de reporte: BCV, Dólares Reales o Euros (Filtro base del PDF)
+    transactions = filter_by_track(transactions, report_type)
+
+    # Aplicar tx_filter adicional si viene de la URL (para coincidir con la vista web).
+    # Si el filtro de la vista contradice el tipo de reporte, no hay filas que exportar.
+    if tx_filter in ('bcv', 'real', 'eur') and tx_filter != report_type:
         transactions = transactions.none()
 
     if category_ids:
@@ -755,6 +706,7 @@ def _get_report_data(request):
             models.Q(amount_bs__icontains=search_query) |
             models.Q(amount_usd__icontains=search_query) |
             models.Q(real_dollars__icontains=search_query) |
+            models.Q(amount_eur__icontains=search_query) |
             models.Q(daily_rate__icontains=search_query)
         ).distinct()
     
@@ -832,7 +784,8 @@ def _get_report_data(request):
     report_totals = transactions.aggregate(
         total_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
         total_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        total_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd'))
+        total_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd')),
+        total_eur=Sum(F('amount_eur') - F('bank_fee_eur'))
     )
     
     return org, transactions, report_type, report_totals, filter_label
@@ -905,12 +858,19 @@ def exportar_pdf_transacciones(request):
     elements.append(Spacer(1, 0.5*cm))
 
     # Datos de la tabla
-    if report_type == 'real':
+    if report_type in ('real', 'eur'):
+        # Reportes de una sola moneda: dólares reales o euros. Misma estructura,
+        # solo cambian la columna de origen, el símbolo y el encabezado.
+        if report_type == 'real':
+            amount_header, symbol, amount_attr, total_key = "Monto (Dólares)", "$", 'real_dollars', 'total_real_usd'
+        else:
+            amount_header, symbol, amount_attr, total_key = "Monto (Euros)", "€", 'amount_eur', 'total_eur'
+
         header = [
             Paragraph("Fecha", header_cell_style),
             Paragraph("Descripción", header_cell_style),
             Paragraph("Referencia", header_cell_style),
-            Paragraph("Monto (Dólares)", header_cell_style),
+            Paragraph(amount_header, header_cell_style),
             Paragraph("Notas", header_cell_style),
             Paragraph("Estado", header_cell_style)
         ]
@@ -920,13 +880,13 @@ def exportar_pdf_transacciones(request):
                 trans.date.strftime("%d/%m/%Y"),
                 Paragraph(trans.description or "", cell_style),
                 trans.reference_number or "---",
-                f"{trans.real_dollars or 0:,.2f} $",
+                f"{getattr(trans, amount_attr) or 0:,.2f} {symbol}",
                 Paragraph(trans.notes or "", cell_style),
                 trans.get_status_display()
             ])
 
         if transactions:
-            data.append(["", "BALANCE TOTAL:", "", f"{report_totals['total_real_usd'] or 0:,.2f} $", "", ""])
+            data.append(["", "BALANCE TOTAL:", "", f"{report_totals[total_key] or 0:,.2f} {symbol}", "", ""])
 
         col_widths = [2.5*cm, 7.5*cm, 3.0*cm, 4.0*cm, 5.0*cm, 2.5*cm]
         estado_col = 5
@@ -982,9 +942,10 @@ def exportar_pdf_transacciones(request):
     # Colores condicionales y negritas
     for i, trans in enumerate(transactions):
         idx = i + 1
-        if report_type == 'real':
-            # Monto USD Real
-            if trans.real_dollars < 0:
+        if report_type in ('real', 'eur'):
+            # Monto en la moneda propia de la cuenta (dólares reales o euros)
+            amount = (trans.real_dollars if report_type == 'real' else trans.amount_eur) or 0
+            if amount < 0:
                 table_style.add('TEXTCOLOR', (3, idx), (3, idx), colors.HexColor("#dc3545"))
             else:
                 table_style.add('TEXTCOLOR', (3, idx), (3, idx), colors.HexColor("#198754"))
@@ -1021,8 +982,8 @@ def exportar_pdf_transacciones(request):
         table_style.add('FONTNAME', (0, last_row), (-1, last_row), 'Helvetica-Bold')
         table_style.add('ALIGN', (2, last_row), (2, last_row), 'RIGHT')
         
-        if report_type == 'real':
-            total_real = report_totals['total_real_usd'] or 0
+        if report_type in ('real', 'eur'):
+            total_real = report_totals['total_real_usd' if report_type == 'real' else 'total_eur'] or 0
             if total_real < 0:
                 table_style.add('TEXTCOLOR', (3, last_row), (3, last_row), colors.HexColor("#dc3545"))
             else:
@@ -1044,94 +1005,6 @@ def exportar_pdf_transacciones(request):
     elements.append(table)
     elements.append(Spacer(1, 1*cm))
 
-    # --- Resumen Gráfico ---
-    cd = get_chart_data(transactions, mode=report_type, json_format=False)
-    
-    if transactions.exists():
-        chart_elements = []
-        
-        # a) Gastos por Categoría (Pie)
-        if cd['cat_series']:
-            d1 = Drawing(8*cm, 6*cm)
-            pc = Pie()
-            pc.x = 1.5*cm
-            pc.y = 0.5*cm
-            pc.width = 4.5*cm
-            pc.height = 4.5*cm
-            pc.data = cd['cat_series']
-            pc.labels = cd['cat_labels']
-            pc.sideLabels = 1
-            pc.slices.fontSize = 7
-            for i, color in enumerate(cd['cat_colors']):
-                pc.slices[i].fillColor = colors.HexColor(color)
-            d1.add(pc)
-            d1.add(String(4*cm, 5.5*cm, "Gastos por Categoría", textAnchor='middle', fontName='Helvetica-Bold', fontSize=10))
-            chart_elements.append(d1)
-        else:
-            chart_elements.append(Paragraph("No hay datos de gastos por categoría", cell_style))
-
-        # b) Ingresos vs Gastos (Bar)
-        d2 = Drawing(8*cm, 6*cm)
-        bc = VerticalBarChart()
-        bc.x = 1*cm
-        bc.y = 1*cm
-        bc.width = 6*cm
-        bc.height = 4*cm
-        bc.data = [[cd['total_income']], [cd['total_expense']]]
-        bc.categoryAxis.categoryNames = ['Balance']
-        bc.bars[0].fillColor = colors.green # Ingresos
-        bc.bars[1].fillColor = colors.red   # Gastos
-        bc.valueAxis.valueMin = 0
-        bc.valueAxis.labels.fontSize = 7
-        d2.add(bc)
-        # Leyenda simple manual para el gráfico de barras
-        d2.add(String(1*cm, 0.2*cm, "Verde: Ingresos", fontSize=7, fillColor=colors.green))
-        d2.add(String(4*cm, 0.2*cm, "Rojo: Gastos", fontSize=7, fillColor=colors.red))
-        d2.add(String(4*cm, 5.5*cm, "Ingresos vs Gastos", textAnchor='middle', fontName='Helvetica-Bold', fontSize=10))
-        chart_elements.append(d2)
-
-        # c) Evolución del Saldo (Line)
-        if cd['evo_series']:
-            d3 = Drawing(9*cm, 6*cm)
-            lc = HorizontalLineChart()
-            lc.x = 1*cm
-            lc.y = 1.2*cm
-            lc.width = 7.5*cm
-            lc.height = 3.8*cm
-            lc.data = [cd['evo_series']]
-            # Limitar etiquetas de fecha si hay demasiadas
-            if len(cd['evo_labels']) > 10:
-                step = len(cd['evo_labels']) // 10
-                lc.categoryAxis.categoryNames = [label if i % step == 0 else '' for i, label in enumerate(cd['evo_labels'])]
-            else:
-                lc.categoryAxis.categoryNames = cd['evo_labels']
-            
-            lc.categoryAxis.labels.fontSize = 6
-            lc.categoryAxis.labels.angle = 45
-            lc.categoryAxis.labels.boxAnchor = 'ne'
-            lc.valueAxis.labels.fontSize = 7
-            
-            # Ajustar rango del eje Y
-            all_vals = cd['evo_series'] + [0]
-            lc.valueAxis.valueMin = min(all_vals) * 1.1 if min(all_vals) < 0 else 0
-            lc.valueAxis.valueMax = max(all_vals) * 1.1 if max(all_vals) > 0 else 10
-            
-            d3.add(lc)
-            d3.add(String(4.5*cm, 5.5*cm, "Evolución del Saldo", textAnchor='middle', fontName='Helvetica-Bold', fontSize=10))
-            chart_elements.append(d3)
-        else:
-            chart_elements.append(Paragraph("No hay datos de evolución", cell_style))
-
-        # Organizar gráficos en una tabla
-        charts_table = Table([chart_elements], colWidths=[8.5*cm, 8.5*cm, 9*cm])
-        charts_table.setStyle(TableStyle([
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ]))
-        elements.append(charts_table)
-        elements.append(Spacer(1, 0.5*cm))
-
-    
     # Footer
     footer_style = ParagraphStyle(
         'FooterStyle',
@@ -1167,13 +1040,21 @@ def exportar_xlsx_transacciones(request):
     ws = wb.active
     ws.title = 'Balance General'
 
-    is_real = report_type == 'real'
-    base_cols = 5 if is_real else 7  # columnas del reporte original (sin tocar)
-    amount_col = 4 if is_real else 6  # columna usada como fuente de los gráficos (Monto Dólares / Monto USD)
+    # Los reportes de dólares reales y de euros son de una sola moneda y comparten
+    # estructura; el de BCV lleva además las columnas de Bs. y de tasa.
+    is_single = report_type in ('real', 'eur')
+    is_eur = report_type == 'eur'
+    single_symbol = '€' if is_eur else '$'
+    single_attr = 'amount_eur' if is_eur else 'real_dollars'
+    single_total_key = 'total_eur' if is_eur else 'total_real_usd'
+    single_label = 'Euros' if is_eur else 'Dólares'
+
+    base_cols = 5 if is_single else 7  # columnas del reporte original (sin tocar)
+    amount_col = 4 if is_single else 6  # columna usada como fuente de los gráficos (Monto Dólares / Monto USD)
     n_cols = base_cols + 3  # + Estado, Categoría, Saldo Acumulado
 
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
-    title_cell = ws.cell(row=1, column=1, value=f"Balance {'Dólares Reales' if is_real else 'BCV'}")
+    title_cell = ws.cell(row=1, column=1, value=f"Balance {single_label if is_single else 'BCV'}")
     title_cell.font = Font(size=16, bold=True, color='FFFFFF')
     title_cell.alignment = Alignment(horizontal='center')
     title_cell.fill = TITLE_FILL
@@ -1190,8 +1071,8 @@ def exportar_xlsx_transacciones(request):
         cell.alignment = Alignment(horizontal='center')
 
     header_row = 6
-    if is_real:
-        headers = ['Fecha', 'Descripción', 'Referencia', 'Monto (Dólares)', 'Notas']
+    if is_single:
+        headers = ['Fecha', 'Descripción', 'Referencia', f'Monto ({single_label})', 'Notas']
     else:
         headers = ['Fecha', 'Descripción', 'Referencia', 'Monto (BS)', 'Tasa', 'Monto (USD)', 'Notas']
     headers += ['Estado', 'Categoría', 'Saldo Acumulado']
@@ -1218,10 +1099,10 @@ def exportar_xlsx_transacciones(request):
         ws.cell(row=row, column=col, value=trans.reference_number or '---').border = THIN_BORDER
         col += 1
 
-        if is_real:
-            amount = float(trans.real_dollars or 0)
+        if is_single:
+            amount = float(getattr(trans, single_attr) or 0)
             amount_cell = ws.cell(row=row, column=col, value=amount)
-            amount_cell.number_format = '#,##0.00 "$"'
+            amount_cell.number_format = f'#,##0.00 "{single_symbol}"'
             amount_cell.font = NEG_FONT if amount < 0 else POS_FONT
             amount_cell.border = THIN_BORDER
             col += 1
@@ -1268,7 +1149,7 @@ def exportar_xlsx_transacciones(request):
             row=row, column=col,
             value=f'=SUM(${amount_col_letter}${first_data_row}:{amount_col_letter}{row})',
         )
-        saldo_cell.number_format = '#,##0.00 "$"'
+        saldo_cell.number_format = f'#,##0.00 "{single_symbol if is_single else "$"}"'
         saldo_cell.border = THIN_BORDER
 
         row += 1
@@ -1283,10 +1164,10 @@ def exportar_xlsx_transacciones(request):
             ws.cell(row=row, column=col).border = THIN_BORDER
             ws.cell(row=row, column=col).font = Font(bold=True)
 
-        if is_real:
-            total = float(report_totals.get('total_real_usd') or 0)
+        if is_single:
+            total = float(report_totals.get(single_total_key) or 0)
             total_cell = ws.cell(row=row, column=4, value=total)
-            total_cell.number_format = '#,##0.00 "$"'
+            total_cell.number_format = f'#,##0.00 "{single_symbol}"'
             total_cell.font = Font(bold=True, color='DC3545' if total < 0 else '198754')
         else:
             total_bs = float(report_totals.get('total_bs') or 0)
@@ -1300,18 +1181,11 @@ def exportar_xlsx_transacciones(request):
             usd_cell.font = Font(bold=True, color='DC3545' if total_usd < 0 else '198754')
         row += 1
 
-    column_widths = [12, 30, 16, 16, 12, 16, 30] if not is_real else [12, 34, 16, 18, 34]
+    column_widths = [12, 34, 16, 18, 34] if is_single else [12, 30, 16, 16, 12, 16, 30]
     column_widths += [14, 22, 18]
     for i, width in enumerate(column_widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = width
     ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
-
-    if transactions.exists():
-        _build_charts_sheet(
-            wb, ws, transactions, report_type,
-            amount_col=amount_col, categoria_col=base_cols + 2, saldo_col=base_cols + 3,
-            header_row=header_row, first_data_row=first_data_row, last_data_row=last_data_row,
-        )
 
     buffer = BytesIO()
     wb.save(buffer)
@@ -1323,87 +1197,6 @@ def exportar_xlsx_transacciones(request):
     )
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
-
-
-def _build_charts_sheet(wb, ws, transactions, report_type, amount_col, categoria_col, saldo_col,
-                         header_row, first_data_row, last_data_row):
-    # cat_labels/cat_colors solo indican qué categorías existen y su color;
-    # los montos de los gráficos se calculan con fórmulas que leen la tabla.
-    cd = get_chart_data(transactions, mode=report_type, json_format=False)
-    cs = wb.create_sheet('Gráficos')
-
-    sheet_ref = f"'{ws.title}'"
-    amount_letter = get_column_letter(amount_col)
-    categoria_letter = get_column_letter(categoria_col)
-    amount_range = f'{sheet_ref}!${amount_letter}${first_data_row}:${amount_letter}${last_data_row}'
-    categoria_range = f'{sheet_ref}!${categoria_letter}${first_data_row}:${categoria_letter}${last_data_row}'
-
-    anchor_row = 1
-
-    max_data_row = anchor_row + 2  # bloque de Ingresos vs Gastos siempre ocupa hasta aquí
-    if cd['cat_labels']:
-        max_data_row = max(max_data_row, anchor_row + len(cd['cat_labels']))
-    chart_row = max_data_row + 3
-
-    if cd['cat_labels']:
-        cs.cell(row=anchor_row, column=1, value='Categoría')
-        cs.cell(row=anchor_row, column=2, value='Gasto (USD)')
-        for i, label in enumerate(cd['cat_labels'], start=1):
-            safe_label = label.replace('"', '""')
-            cs.cell(row=anchor_row + i, column=1, value=label)
-            cs.cell(row=anchor_row + i, column=2,
-                    value=f'=ABS(SUMIFS({amount_range},{categoria_range},"*{safe_label}*",{amount_range},"<0"))')
-        n = len(cd['cat_labels'])
-
-        pie = PieChart()
-        pie.title = 'Gastos por Categoría'
-        data = Reference(cs, min_col=2, min_row=anchor_row, max_row=anchor_row + n)
-        cats = Reference(cs, min_col=1, min_row=anchor_row + 1, max_row=anchor_row + n)
-        pie.add_data(data, titles_from_data=True)
-        pie.set_categories(cats)
-        pie.varyColors = True
-        pie.series[0].data_points = [
-            DataPoint(idx=i, spPr=GraphicalProperties(solidFill=(color or '#000000').lstrip('#')))
-            for i, color in enumerate(cd['cat_colors'])
-        ]
-        pie.height = 9
-        pie.width = 11
-        cs.add_chart(pie, f'{get_column_letter(2)}{chart_row}')
-
-    cs.cell(row=anchor_row, column=4 + 6, value='Tipo')
-    cs.cell(row=anchor_row, column=5 + 6, value='Monto (USD)')
-    cs.cell(row=anchor_row + 1, column=4 + 6, value='Ingresos')
-    cs.cell(row=anchor_row + 1, column=5 + 6, value=f'=SUMIF({amount_range},">0")')
-    cs.cell(row=anchor_row + 2, column=4 + 6, value='Gastos')
-    cs.cell(row=anchor_row + 2, column=5 + 6, value=f'=ABS(SUMIF({amount_range},"<0"))')
-
-    bar = BarChart()
-    bar.type = 'col'
-    bar.title = 'Ingresos vs Gastos'
-    bar_data = Reference(cs, min_col=11, min_row=anchor_row, max_row=anchor_row + 2)
-    bar_cats = Reference(cs, min_col=10, min_row=anchor_row + 1, max_row=anchor_row + 2)
-    bar.add_data(bar_data, titles_from_data=True)
-    bar.set_categories(bar_cats)
-    bar.series[0].data_points = [
-        DataPoint(idx=0, spPr=GraphicalProperties(solidFill='198754')),  # Ingresos: verde
-        DataPoint(idx=1, spPr=GraphicalProperties(solidFill='DC3545')),  # Gastos: rojo
-    ]
-    bar.legend = None
-    bar.height = 9
-    bar.width = 11
-    cs.add_chart(bar, f'{get_column_letter(10)}{chart_row}')
-
-    # Evolución del saldo: se lee directamente de las columnas Fecha y Saldo
-    # Acumulado de la tabla de transacciones, sin ningún bloque auxiliar.
-    line = LineChart()
-    line.title = 'Evolución del Saldo'
-    line_data = Reference(ws, min_col=saldo_col, min_row=header_row, max_row=last_data_row)
-    line_cats = Reference(ws, min_col=1, min_row=first_data_row, max_row=last_data_row)
-    line.add_data(line_data, titles_from_data=True)
-    line.set_categories(line_cats)
-    line.height = 9
-    line.width = 11
-    cs.add_chart(line, f'{get_column_letter(18)}{chart_row}')
 
 
 def _safe_next_url(request, default):
@@ -1637,11 +1430,9 @@ def lista_cuentas(request):
     
     org = get_object_or_404(Organization, id=org_id)
     accounts = Account.objects.filter(organization=org).annotate(
-        balance_usd=Sum(F('transactions__amount_usd') - F('transactions__bank_fee_usd')),
-        balance_bs=Sum(F('transactions__amount_bs') - F('transactions__bank_fee_bs')),
-        balance_real_usd=Sum(F('transactions__real_dollars') - F('transactions__bank_fee_real_usd'))
+        **balance_aggregates('transactions__')
     )
-    
+
     form = AccountForm()
 
     bcv_rate = get_bcv_rate()
@@ -1655,6 +1446,7 @@ def lista_cuentas(request):
             'rif': acc.rif,
             'account_number': acc.account_number,
             'holder': acc.holder,
+            'name': acc.name,
         }
         for acc in accounts
     ])
@@ -1807,6 +1599,7 @@ def detalle_cuenta(request, acc_id):
             models.Q(amount_bs__icontains=search_query) |
             models.Q(amount_usd__icontains=search_query) |
             models.Q(real_dollars__icontains=search_query) |
+            models.Q(amount_eur__icontains=search_query) |
             models.Q(daily_rate__icontains=search_query)
         ).distinct()
 
@@ -1855,21 +1648,10 @@ def detalle_cuenta(request, acc_id):
     else:
         transactions_list = transactions_list.order_by('-date', '-id')
     
-    totals = transactions_list.aggregate(
-        balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-        balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        balance_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-        income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-        expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-        income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-        expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-        income_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-        expense_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-        fees_usd=Sum('bank_fee_usd'),
-        fees_bs=Sum('bank_fee_bs'),
-        fees_real_usd=Sum('bank_fee_real_usd')
-    )
-    
+    totals = transactions_list.aggregate(**balance_aggregates())
+    totals.update(currency_totals(transactions_list))
+
+
     paginator = Paginator(transactions_list, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -1927,17 +1709,8 @@ def detalle_cuenta(request, acc_id):
         'projects_data': json.dumps(projects_data, cls=DecimalEncoder),
         'form': form,
         'bcv_rate': bcv_rate,
-        'totals': {
-            'balance_usd': totals['balance_usd'] or 0,
-            'balance_bs': totals['balance_bs'] or 0,
-            'balance_real_usd': totals['balance_real_usd'] or 0,
-            'income_usd': totals['income_usd'] or 0,
-            'expense_usd': abs(totals['expense_usd'] or 0) + (totals['fees_usd'] or 0),
-            'income_bs': totals['income_bs'] or 0,
-            'expense_bs': abs(totals['expense_bs'] or 0) + (totals['fees_bs'] or 0),
-            'income_real_usd': totals['income_real_usd'] or 0,
-            'expense_real_usd': abs(totals['expense_real_usd'] or 0) + (totals['fees_real_usd'] or 0),
-        }
+        'totals': {key: (value or 0) for key, value in totals.items()},
+        **currency_flags({account.currency}),
     })
 
 # --- Proyectos ---
@@ -1958,29 +1731,20 @@ def lista_proyectos(request):
     ).distinct()
 
     # Subconsultas para calcular balance TOTAL del proyecto (todas las orgs)
-    total_usd_subquery = Transaction.objects.filter(
-        project_id=OuterRef('pk')
-    ).order_by().values('project').annotate(
-        total=Sum(F('amount_usd') - F('bank_fee_usd'))
-    ).values('total')
+    def project_balance_subquery(amount_field, fee_field):
+        return Transaction.objects.filter(
+            project_id=OuterRef('pk')
+        ).order_by().values('project').annotate(
+            total=Sum(F(amount_field) - F(fee_field))
+        ).values('total')
 
-    total_bs_subquery = Transaction.objects.filter(
-        project_id=OuterRef('pk')
-    ).order_by().values('project').annotate(
-        total=Sum(F('amount_bs') - F('bank_fee_bs'))
-    ).values('total')
-
-    total_real_usd_subquery = Transaction.objects.filter(
-        project_id=OuterRef('pk')
-    ).order_by().values('project').annotate(
-        total=Sum(F('real_dollars') - F('bank_fee_real_usd'))
-    ).values('total')
-
-    projects = projects_qs.annotate(
-        total_balance_usd=Coalesce(Subquery(total_usd_subquery), Value(0, output_field=models.DecimalField())),
-        total_balance_bs=Coalesce(Subquery(total_bs_subquery), Value(0, output_field=models.DecimalField())),
-        total_balance_real_usd=Coalesce(Subquery(total_real_usd_subquery), Value(0, output_field=models.DecimalField()))
-    )
+    projects = projects_qs.annotate(**{
+        f'total_balance_{suffix}': Coalesce(
+            Subquery(project_balance_subquery(amount, fee)),
+            Value(0, output_field=models.DecimalField()),
+        )
+        for suffix, amount, fee in CURRENCY_TRACKS
+    })
 
     form = ProjectForm()
 
@@ -2073,15 +1837,9 @@ def detalle_proyecto(request, proj_id):
     cost_center_id = request.GET.get('cost_center')
     account_id = request.GET.get('account')
     search_query = request.GET.get('search', '')
-    tx_filter = request.GET.get('tx_filter', 'all') # 'all', 'bcv', 'real'
-    view_mode = request.GET.get('view_mode', 'bcv') # 'bcv' or 'real'
+    tx_filter = request.GET.get('tx_filter', 'all') # 'all', 'bcv', 'real', 'eur'
     status_filter = request.GET.get('status', '') # 'completado', 'pendiente', ''
 
-    # Sincronización: El filtro de transacciones afecta al toggle de balance
-    if tx_filter == 'real':
-        view_mode = 'real'
-    elif tx_filter == 'bcv':
-        view_mode = 'bcv'
 
     if date_from == 'None': date_from = None
     if date_to == 'None': date_to = None
@@ -2091,11 +1849,9 @@ def detalle_proyecto(request, proj_id):
     # Ver TODAS las transacciones del proyecto (de cualquier organización con acceso)
     transactions_list = Transaction.objects.filter(project=project)
 
-    # Filtrar por tipo de transacción (BCV / Real Dollars)
-    if tx_filter == 'real':
-        transactions_list = transactions_list.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-    elif tx_filter == 'bcv':
-        transactions_list = transactions_list.filter(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
+    # Filtrar por tipo de transacción (BCV / Dólares reales / Euros)
+    if tx_filter in ('real', 'bcv', 'eur'):
+        transactions_list = filter_by_track(transactions_list, tx_filter)
 
     if search_query:
         # OJO: el lookup categories__name atraviesa una relación M2M, lo que puede
@@ -2115,6 +1871,7 @@ def detalle_proyecto(request, proj_id):
             models.Q(amount_bs__icontains=search_query) |
             models.Q(amount_usd__icontains=search_query) |
             models.Q(real_dollars__icontains=search_query) |
+            models.Q(amount_eur__icontains=search_query) |
             models.Q(daily_rate__icontains=search_query)
         ).distinct()
 
@@ -2198,37 +1955,13 @@ def detalle_proyecto(request, proj_id):
             val.progress = min(round((covered / val.amount_bs) * 100, 2), 100)
 
     # Totales FILTRADOS para el dashboard dinámico
-    totals_project = transactions_list.aggregate(
-        balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-        balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        balance_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-        income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-        expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-        income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-        expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-        income_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-        expense_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-        fees_usd=Sum('bank_fee_usd'),
-        fees_bs=Sum('bank_fee_bs'),
-        fees_real_usd=Sum('bank_fee_real_usd')
-    )
-    
+    totals_project = transactions_list.aggregate(**balance_aggregates())
+    totals_project.update(currency_totals(transactions_list))
+
     # Saldo pendiente: mismos filtros aplicados (excepto estado), solo transacciones 'pendiente'
     has_pending = pending_qs_base.exists()
-    pending_totals_project = pending_qs_base.aggregate(
-        balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-        balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        balance_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-        income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-        expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-        income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-        expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-        income_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-        expense_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-        fees_usd=Sum('bank_fee_usd'),
-        fees_bs=Sum('bank_fee_bs'),
-        fees_real_usd=Sum('bank_fee_real_usd')
-    )
+    pending_totals_project = pending_qs_base.aggregate(**balance_aggregates())
+    pending_totals_project.update(currency_totals(pending_qs_base))
 
     paginator = Paginator(transactions_list, 20)
     page_number = request.GET.get('page')
@@ -2238,7 +1971,9 @@ def detalle_proyecto(request, proj_id):
     trans_form = TransactionForm(organization=org, project=project)
     bcv_rate = get_bcv_rate()
 
-    chart_data = get_chart_data(transactions_list, mode=view_mode)
+    # El selector de moneda de los gráficos vive solo en el dashboard;
+    # aquí los gráficos usan el modo BCV por omisión.
+    chart_data = get_chart_data(transactions_list)
 
     orgs_data = {}
     for o in orgs_with_access:
@@ -2282,36 +2017,15 @@ def detalle_proyecto(request, proj_id):
         'filter_options': filter_options,
         'chart_data': chart_data,
         'sort': sort,
-        'view_mode': view_mode,
         'tx_filter': tx_filter,
         'status_filter': status_filter,
         'has_pending': has_pending,
-        'totals': {
-            'balance_usd': (totals_project['balance_usd'] or 0) + (totals_project['balance_real_usd'] or 0),
-            'balance_bs': totals_project['balance_bs'] or 0,
-            'balance_real_usd': totals_project['balance_real_usd'] or 0,
-            'income_usd': (totals_project['income_usd'] or 0) + (totals_project['income_real_usd'] or 0),
-            'income_bs': totals_project['income_bs'] or 0,
-            'income_real_usd': totals_project['income_real_usd'] or 0,
-            'expense_usd': abs((totals_project['expense_usd'] or 0) + (totals_project['expense_real_usd'] or 0)) +
-                           (totals_project['fees_usd'] or 0) + (totals_project['fees_real_usd'] or 0),
-            'expense_bs': abs(totals_project['expense_bs'] or 0) + (totals_project['fees_bs'] or 0),
-            'expense_real_usd': abs(totals_project['expense_real_usd'] or 0) + (totals_project['fees_real_usd'] or 0),
-            'pending_balance_usd': (pending_totals_project['balance_usd'] or 0) + (pending_totals_project['balance_real_usd'] or 0),
-            'pending_balance_bs': pending_totals_project['balance_bs'] or 0,
-            'pending_balance_real_usd': pending_totals_project['balance_real_usd'] or 0,
-            'pending_income_usd': (pending_totals_project['income_usd'] or 0) + (pending_totals_project['income_real_usd'] or 0),
-            'pending_income_bs': pending_totals_project['income_bs'] or 0,
-            'pending_income_real_usd': pending_totals_project['income_real_usd'] or 0,
-            'pending_expense_usd': abs((pending_totals_project['expense_usd'] or 0) + (pending_totals_project['expense_real_usd'] or 0)) +
-                                    (pending_totals_project['fees_usd'] or 0) + (pending_totals_project['fees_real_usd'] or 0),
-            'pending_expense_bs': abs(pending_totals_project['expense_bs'] or 0) + (pending_totals_project['fees_bs'] or 0),
-            'pending_expense_real_usd': abs(pending_totals_project['expense_real_usd'] or 0) + (pending_totals_project['fees_real_usd'] or 0),
-        },
+        'totals': project_totals_context(totals_project, pending_totals_project),
         'tx_filter_options': [
             ('all', 'Todas las transacciones'),
             ('bcv', 'Transacciones BCV'),
-            ('real', 'Transacciones Dólares Reales'),
+            ('real', 'Transacciones Dólares'),
+            ('eur', 'Transacciones Euros'),
         ],
         'status_filter_options': [
             ('', 'Todos los estados'),
@@ -2319,6 +2033,12 @@ def detalle_proyecto(request, proj_id):
             ('pendiente', 'Pendiente'),
             ('parcial', 'Parcial'),
         ],
+        # Las monedas del proyecto son las de las cuentas que mueven sus
+        # transacciones, no las de una sola organización.
+        **currency_flags(
+            Account.objects.filter(transactions__project=project)
+            .values_list('currency', flat=True).distinct()
+        ),
     })
 
 # --- Compartir proyecto (enlace público de solo lectura, sin login) ---
@@ -2492,13 +2212,8 @@ def proyecto_publico(request, token):
     account_id = request.GET.get('account')
     search_query = request.GET.get('search', '')
     tx_filter = request.GET.get('tx_filter', 'all')
-    view_mode = request.GET.get('view_mode', 'bcv')
     status_filter = request.GET.get('status', '')
 
-    if tx_filter == 'real':
-        view_mode = 'real'
-    elif tx_filter == 'bcv':
-        view_mode = 'bcv'
 
     if date_from == 'None': date_from = None
     if date_to == 'None': date_to = None
@@ -2507,10 +2222,8 @@ def proyecto_publico(request, token):
 
     transactions_list = Transaction.objects.filter(project=project)
 
-    if tx_filter == 'real':
-        transactions_list = transactions_list.exclude(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
-    elif tx_filter == 'bcv':
-        transactions_list = transactions_list.filter(models.Q(real_dollars=0) | models.Q(real_dollars__isnull=True))
+    if tx_filter in ('real', 'bcv', 'eur'):
+        transactions_list = filter_by_track(transactions_list, tx_filter)
 
     if search_query:
         transactions_list = transactions_list.filter(
@@ -2527,6 +2240,7 @@ def proyecto_publico(request, token):
             models.Q(amount_bs__icontains=search_query) |
             models.Q(amount_usd__icontains=search_query) |
             models.Q(real_dollars__icontains=search_query) |
+            models.Q(amount_eur__icontains=search_query) |
             models.Q(daily_rate__icontains=search_query)
         ).distinct()
 
@@ -2602,42 +2316,20 @@ def proyecto_publico(request, token):
             covered = val.covered_bs or 0
             val.progress = min(round((covered / val.amount_bs) * 100, 2), 100)
 
-    totals_project = transactions_list.aggregate(
-        balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-        balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        balance_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-        income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-        expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-        income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-        expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-        income_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-        expense_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-        fees_usd=Sum('bank_fee_usd'),
-        fees_bs=Sum('bank_fee_bs'),
-        fees_real_usd=Sum('bank_fee_real_usd')
-    )
+    totals_project = transactions_list.aggregate(**balance_aggregates())
+    totals_project.update(currency_totals(transactions_list))
 
     has_pending = pending_qs_base.exists()
-    pending_totals_project = pending_qs_base.aggregate(
-        balance_usd=Sum(F('amount_usd') - F('bank_fee_usd')),
-        balance_bs=Sum(F('amount_bs') - F('bank_fee_bs')),
-        balance_real_usd=Sum(F('real_dollars') - F('bank_fee_real_usd')),
-        income_usd=Sum('amount_usd', filter=models.Q(amount_usd__gt=0)),
-        expense_usd=Sum('amount_usd', filter=models.Q(amount_usd__lt=0)),
-        income_bs=Sum('amount_bs', filter=models.Q(amount_bs__gt=0)),
-        expense_bs=Sum('amount_bs', filter=models.Q(amount_bs__lt=0)),
-        income_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__gt=0)),
-        expense_real_usd=Sum('real_dollars', filter=models.Q(real_dollars__lt=0)),
-        fees_usd=Sum('bank_fee_usd'),
-        fees_bs=Sum('bank_fee_bs'),
-        fees_real_usd=Sum('bank_fee_real_usd')
-    )
+    pending_totals_project = pending_qs_base.aggregate(**balance_aggregates())
+    pending_totals_project.update(currency_totals(pending_qs_base))
 
     paginator = Paginator(transactions_list, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    chart_data = get_chart_data(transactions_list, mode=view_mode)
+    # El selector de moneda de los gráficos vive solo en el dashboard;
+    # aquí los gráficos usan el modo BCV por omisión.
+    chart_data = get_chart_data(transactions_list)
 
     filter_options = [
         ('all', 'Todo el tiempo'),
@@ -2670,36 +2362,15 @@ def proyecto_publico(request, token):
         'filter_options': filter_options,
         'chart_data': chart_data,
         'sort': sort,
-        'view_mode': view_mode,
         'tx_filter': tx_filter,
         'status_filter': status_filter,
         'has_pending': has_pending,
-        'totals': {
-            'balance_usd': (totals_project['balance_usd'] or 0) + (totals_project['balance_real_usd'] or 0),
-            'balance_bs': totals_project['balance_bs'] or 0,
-            'balance_real_usd': totals_project['balance_real_usd'] or 0,
-            'income_usd': (totals_project['income_usd'] or 0) + (totals_project['income_real_usd'] or 0),
-            'income_bs': totals_project['income_bs'] or 0,
-            'income_real_usd': totals_project['income_real_usd'] or 0,
-            'expense_usd': abs((totals_project['expense_usd'] or 0) + (totals_project['expense_real_usd'] or 0)) +
-                           (totals_project['fees_usd'] or 0) + (totals_project['fees_real_usd'] or 0),
-            'expense_bs': abs(totals_project['expense_bs'] or 0) + (totals_project['fees_bs'] or 0),
-            'expense_real_usd': abs(totals_project['expense_real_usd'] or 0) + (totals_project['fees_real_usd'] or 0),
-            'pending_balance_usd': (pending_totals_project['balance_usd'] or 0) + (pending_totals_project['balance_real_usd'] or 0),
-            'pending_balance_bs': pending_totals_project['balance_bs'] or 0,
-            'pending_balance_real_usd': pending_totals_project['balance_real_usd'] or 0,
-            'pending_income_usd': (pending_totals_project['income_usd'] or 0) + (pending_totals_project['income_real_usd'] or 0),
-            'pending_income_bs': pending_totals_project['income_bs'] or 0,
-            'pending_income_real_usd': pending_totals_project['income_real_usd'] or 0,
-            'pending_expense_usd': abs((pending_totals_project['expense_usd'] or 0) + (pending_totals_project['expense_real_usd'] or 0)) +
-                                    (pending_totals_project['fees_usd'] or 0) + (pending_totals_project['fees_real_usd'] or 0),
-            'pending_expense_bs': abs(pending_totals_project['expense_bs'] or 0) + (pending_totals_project['fees_bs'] or 0),
-            'pending_expense_real_usd': abs(pending_totals_project['expense_real_usd'] or 0) + (pending_totals_project['fees_real_usd'] or 0),
-        },
+        'totals': project_totals_context(totals_project, pending_totals_project),
         'tx_filter_options': [
             ('all', 'Todas las transacciones'),
             ('bcv', 'Transacciones BCV'),
-            ('real', 'Transacciones Dólares Reales'),
+            ('real', 'Transacciones Dólares'),
+            ('eur', 'Transacciones Euros'),
         ],
         'status_filter_options': [
             ('', 'Todos los estados'),
@@ -2714,6 +2385,12 @@ def proyecto_publico(request, token):
         'hide_navbar': True,
         'hide_sidebar': True,
         'wide_layout': True,
+        # Las monedas del proyecto son las de las cuentas que mueven sus
+        # transacciones, no las de una sola organización.
+        **currency_flags(
+            Account.objects.filter(transactions__project=project)
+            .values_list('currency', flat=True).distinct()
+        ),
     })
 
 # --- Valuaciones ---

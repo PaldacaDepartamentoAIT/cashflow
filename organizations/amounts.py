@@ -6,6 +6,31 @@ from .audit import log_transaction_audit
 from .models import Account, Transaction, TransactionAuditLog
 
 
+#: Columna de monto y de comisión que "posee" cada moneda de cuenta. Las cuentas
+#: en Bs. son el único caso dual: además de amount_bs guardan el equivalente BCV
+#: en amount_usd/bank_fee_usd, derivado con la tasa del día.
+CURRENCY_FIELDS = {
+    Account.CURRENCY_BS: ('amount_bs', 'bank_fee_bs', 'amount_usd', 'bank_fee_usd'),
+    Account.CURRENCY_USD: ('real_dollars', 'bank_fee_real_usd'),
+    Account.CURRENCY_EUR: ('amount_eur', 'bank_fee_eur'),
+}
+
+ALL_AMOUNT_FIELDS = ('amount_bs', 'amount_usd', 'real_dollars', 'amount_eur')
+ALL_FEE_FIELDS = ('bank_fee_bs', 'bank_fee_usd', 'bank_fee_real_usd', 'bank_fee_eur')
+
+
+def zero_foreign_currency_fields(data, currency):
+    """Pone a 0 todas las columnas de monto/comisión ajenas a la moneda de la cuenta.
+
+    `data` es un dict mutable (típicamente `cleaned_data`). Devuelve el mismo dict.
+    """
+    owned = set(CURRENCY_FIELDS.get(currency, ()))
+    for field in ALL_AMOUNT_FIELDS + ALL_FEE_FIELDS:
+        if field not in owned:
+            data[field] = 0
+    return data
+
+
 def apply_dual_currency_amounts(amount_bs, amount_usd, daily_rate):
     """
     Completa el monto faltante según la tasa del día.
@@ -48,15 +73,16 @@ def create_initial_balance_transaction(
 
     rate = daily_rate or 1
 
+    amount_bs = amount_usd = real_dollars = amount_eur = 0
+
     if account.currency == Account.CURRENCY_USD:
-        amount_bs = 0
-        amount_usd = 0
         real_dollars = balance
+    elif account.currency == Account.CURRENCY_EUR:
+        amount_eur = balance
     else:
         amount_bs, amount_usd = opening_balance_transaction_amounts(
             balance, account.currency, rate
         )
-        real_dollars = 0
 
     transaction = Transaction.objects.create(
         organization=organization,
@@ -66,6 +92,7 @@ def create_initial_balance_transaction(
         amount_bs=amount_bs,
         amount_usd=amount_usd,
         real_dollars=real_dollars,
+        amount_eur=amount_eur,
         daily_rate=rate,
         status='completado',
     )

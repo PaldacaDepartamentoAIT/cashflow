@@ -11,6 +11,8 @@ function initSuperadminOrgs(config) {
     var accountsUsdList = document.getElementById('wizardAccountsUsdList');
     var addBsAccountBtn = document.getElementById('wizardAddBsAccountBtn');
     var addUsdAccountBtn = document.getElementById('wizardAddUsdAccountBtn');
+    var accountsEurList = document.getElementById('wizardAccountsEurList');
+    var addEurAccountBtn = document.getElementById('wizardAddEurAccountBtn');
 
     function showError(el, msg) {
         if (!el) return;
@@ -37,7 +39,8 @@ function initSuperadminOrgs(config) {
         var row = document.createElement('div');
         row.className = 'sa-wizard-account-row sa-wizard-account-row--full';
         var isBs = currency === 'BS';
-        var balanceLabel = isBs ? 'Saldo inicial (Bs.)' : 'Saldo inicial (USD)';
+        var BALANCE_LABELS = { BS: 'Saldo inicial (Bs.)', USD: 'Saldo inicial (USD)', EUR: 'Saldo inicial (EUR)' };
+        var balanceLabel = BALANCE_LABELS[currency] || BALANCE_LABELS.BS;
         row.innerHTML =
             '<input type="hidden" name="account_currency" value="' + currency + '">' +
             '<input type="hidden" name="account_bank_name" class="sa-account-bank-name" value="">' +
@@ -68,7 +71,7 @@ function initSuperadminOrgs(config) {
             '</div>' +
             '<button type="button" class="sa-wizard-account-remove" title="Quitar cuenta"><i class="fa-solid fa-xmark"></i></button>';
 
-        var listEl = isBs ? accountsBsList : accountsUsdList;
+        var listEl = isBs ? accountsBsList : (currency === 'EUR' ? accountsEurList : accountsUsdList);
         var bankSelect = row.querySelector('.sa-account-bank-select');
         var bankNameInput = row.querySelector('.sa-account-bank-name');
         var bankCodeInput = row.querySelector('.sa-account-bank-code');
@@ -101,6 +104,10 @@ function initSuperadminOrgs(config) {
         accountsUsdList.innerHTML = '';
         accountsBsList.appendChild(buildAccountRow('BS'));
         accountsUsdList.appendChild(buildAccountRow('USD'));
+        if (accountsEurList) {
+            accountsEurList.innerHTML = '';
+            accountsEurList.appendChild(buildAccountRow('EUR'));
+        }
         switchAccountTab('bs');
     }
 
@@ -164,21 +171,23 @@ function initSuperadminOrgs(config) {
         var err = document.getElementById('wizardAccountsError');
         var rows = []
             .concat(Array.from(accountsBsList.querySelectorAll('.sa-wizard-account-row')))
-            .concat(Array.from(accountsUsdList.querySelectorAll('.sa-wizard-account-row')));
+            .concat(Array.from(accountsUsdList.querySelectorAll('.sa-wizard-account-row')))
+            .concat(accountsEurList ? Array.from(accountsEurList.querySelectorAll('.sa-wizard-account-row')) : []);
         var filledRows = rows.filter(accountRowIsFilled);
 
         if (filledRows.length === 0) {
-            showError(err, 'Agregue al menos una cuenta en bolívares o en dólares antes de continuar al siguiente paso.');
+            showError(err, 'Agregue al menos una cuenta en bolívares, dólares o euros antes de continuar al siguiente paso.');
             return false;
         }
 
         for (var i = 0; i < filledRows.length; i++) {
             var row = filledRows[i];
-            var label = row.querySelector('[name="account_currency"]').value === 'BS' ? 'Cuenta Bs.' : 'Cuenta USD';
-            var rowError = validateAccountRow(row, label);
+            var rowCurrency = row.querySelector('[name="account_currency"]').value;
+            var ROW_LABELS = { BS: 'Cuenta Bs.', USD: 'Cuenta USD', EUR: 'Cuenta EUR' };
+            var rowError = validateAccountRow(row, ROW_LABELS[rowCurrency] || ROW_LABELS.BS);
             if (rowError) {
                 showError(err, rowError);
-                switchAccountTab(row.querySelector('[name="account_currency"]').value === 'BS' ? 'bs' : 'usd');
+                switchAccountTab(rowCurrency.toLowerCase());
                 return false;
             }
         }
@@ -330,6 +339,12 @@ function initSuperadminOrgs(config) {
     if (addUsdAccountBtn) {
         addUsdAccountBtn.addEventListener('click', function () {
             accountsUsdList.appendChild(buildAccountRow('USD'));
+        });
+    }
+
+    if (addEurAccountBtn) {
+        addEurAccountBtn.addEventListener('click', function () {
+            accountsEurList.appendChild(buildAccountRow('EUR'));
         });
     }
 

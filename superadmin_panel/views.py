@@ -125,7 +125,7 @@ def _parse_wizard_accounts(post_data):
 
     total = len(currencies)
     if total == 0:
-        errors.append('Agregue al menos una cuenta en bolívares o en dólares.')
+        errors.append('Agregue al menos una cuenta en bolívares, dólares o euros.')
         return accounts, errors
 
     for index in range(total):

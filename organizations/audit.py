@@ -24,6 +24,8 @@ def serialize_transaction_snapshot(transaction):
         'bank_fee_usd': float(transaction.bank_fee_usd),
         'real_dollars': float(transaction.real_dollars) if transaction.real_dollars is not None else None,
         'bank_fee_real_usd': float(transaction.bank_fee_real_usd),
+        'amount_eur': float(transaction.amount_eur) if transaction.amount_eur is not None else None,
+        'bank_fee_eur': float(transaction.bank_fee_eur),
     }
 
 

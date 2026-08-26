@@ -31,8 +31,8 @@
         <div class="cf-card__body">
             <div class="cf-flex cf-justify-between cf-items-start cf-mb-3">
                 <div>
-                    <span class="cf-badge cf-badge--{% if acc.currency == 'USD' %}info{% else %}success{% endif %} cf-mb-2">
-                        {% if acc.currency == 'USD' %}Cuenta en Dólares{% else %}Cuenta en Bolívares{% endif %}
+                    <span class="cf-badge cf-badge--{% if acc.currency == 'USD' %}info{% elif acc.currency == 'EUR' %}primary{% else %}success{% endif %} cf-mb-2">
+                        {% if acc.currency == 'USD' %}Cuenta en Dólares{% elif acc.currency == 'EUR' %}Cuenta en Euros{% else %}Cuenta en Bolívares{% endif %}
                     </span>
                     <h5 class="cf-card__title">{{ acc.name }}</h5>
                     <p class="cf-text-muted cf-fs-sm cf-mb-0">{{ acc.bank_name }}</p>
@@ -51,7 +51,10 @@
                 <div class="cf-divider cf-my-3"></div>
                 <div class="account-balance">
                 <span class="cf-stat-label">Saldo Actual</span>
-                {% if acc.currency == 'USD' %}
+                {% if acc.currency == 'EUR' %}
+                {# Las cuentas en euros no tienen equivalente en Bs.: se muestra un único saldo, ajeno a la preferencia Bs./USD. #}
+                <div class="cf-stat-value">{{ acc.balance_eur|default:0|intcomma }} <span class="cf-fs-sm cf-text-muted">€</span></div>
+                {% elif acc.currency == 'USD' %}
                 <div class="cf-stat-value currency-usd-content">{{ acc.balance_real_usd|default:0|intcomma }} <span class="cf-fs-sm cf-text-muted">$</span></div>
                 <div class="cf-stat-value currency-bs-content cf-hidden">{{ acc.balance_bs|default:0|intcomma }} <span class="cf-fs-sm cf-text-muted">Bs.</span></div>
                 {% else %}

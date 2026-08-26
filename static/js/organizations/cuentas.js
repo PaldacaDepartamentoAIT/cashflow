@@ -52,13 +52,21 @@ function initCuentas(config) {
         }
     }
 
+    var BALANCE_LABELS = {
+        USD: 'Saldo inicial (USD)',
+        EUR: 'Saldo inicial (€)',
+        BS: 'Saldo inicial (Bs.)',
+    };
+
     function updateCurrencyUI() {
         var currency = currentCurrency();
         if (initialBalanceLabel) {
-            initialBalanceLabel.textContent = currency === 'USD' ? 'Saldo inicial (USD)' : 'Saldo inicial (Bs.)';
+            initialBalanceLabel.textContent = BALANCE_LABELS[currency] || BALANCE_LABELS.BS;
         }
+        // Solo las cuentas en bolívares usan la tasa BCV: las de moneda
+        // extranjera guardan su saldo directamente en su propia moneda.
         if (rateFieldWrap) {
-            rateFieldWrap.classList.toggle('cf-hidden', currency === 'USD');
+            rateFieldWrap.classList.toggle('cf-hidden', currency !== 'BS');
         }
         if (dailyRateField) {
             dailyRateField.value = config.bcvRate;

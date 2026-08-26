@@ -386,3 +386,141 @@ def test_transaction_form_cost_center():
     assert cc_other not in form.fields['cost_center'].queryset
 
 
+
+
+# --- Cuentas y transacciones en euros ---
+
+
+def _eur_account(org, name='Cuenta EUR'):
+    return Account.objects.create(
+        organization=org,
+        currency=Account.CURRENCY_EUR,
+        bank_code='',
+        bank_name='JPMorgan Chase & Co.',
+        rif='J123456789',
+        account_number='01021234567890123456',
+        holder='Titular de Prueba',
+        name=name,
+    )
+
+
+@pytest.mark.django_db
+def test_saldo_inicial_cuenta_eur_solo_mueve_euros():
+    """El saldo inicial de una cuenta en euros va a amount_eur, sin tocar el
+    resto de las columnas ni convertir por la tasa BCV."""
+    from organizations.amounts import create_initial_balance_transaction
+
+    org = Organization.objects.create(name='Org EUR')
+    account = _eur_account(org)
+
+    tx = create_initial_balance_transaction(
+        organization=org, account=account, balance=Decimal('250.00'), daily_rate=Decimal('40'),
+    )
+
+    assert tx.amount_eur == Decimal('250.00')
+    assert tx.amount_bs == 0
+    assert tx.amount_usd == 0
+    assert tx.real_dollars == 0
+
+
+@pytest.mark.django_db
+def test_transaction_form_rechaza_bolivares_en_cuenta_eur():
+    from organizations.forms import TransactionForm
+
+    org = Organization.objects.create(name='Org EUR Form')
+    account = _eur_account(org)
+
+    form = TransactionForm(data={
+        'date': date.today(), 'organization': org.id, 'account': account.id,
+        'description': 'Gasto', 'status': 'completado',
+        'amount_bs': 100, 'amount_usd': 0, 'daily_rate': 40,
+        'bank_fee_bs': 0, 'bank_fee_usd': 0, 'bank_fee_real_usd': 0,
+        'amount_eur': 0, 'bank_fee_eur': 0,
+    }, organization=org)
+
+    assert not form.is_valid()
+    assert 'euros' in ' '.join(form.errors['__all__']).lower()
+
+
+@pytest.mark.django_db
+def test_transaction_form_rechaza_euros_en_cuenta_bs():
+    from organizations.forms import TransactionForm
+
+    org = Organization.objects.create(name='Org BS Form')
+    account = Account.objects.create(
+        organization=org, currency=Account.CURRENCY_BS, bank_code='0102',
+        bank_name='Banco de Venezuela, S.A. Banco Universal', rif='J123456789',
+        account_number='01021234567890123456', holder='Titular', name='Cuenta Bs',
+    )
+
+    form = TransactionForm(data={
+        'date': date.today(), 'organization': org.id, 'account': account.id,
+        'description': 'Gasto', 'status': 'completado',
+        'amount_bs': 100, 'amount_usd': 0, 'daily_rate': 40,
+        'bank_fee_bs': 0, 'bank_fee_usd': 0, 'bank_fee_real_usd': 0,
+        'amount_eur': 50, 'bank_fee_eur': 0,
+    }, organization=org)
+
+    assert not form.is_valid()
+    assert "'Euros'" in ' '.join(form.errors['__all__'])
+
+
+@pytest.mark.django_db
+def test_transaction_form_acepta_euros_en_cuenta_eur():
+    from organizations.forms import TransactionForm
+
+    org = Organization.objects.create(name='Org EUR OK')
+    account = _eur_account(org)
+
+    form = TransactionForm(data={
+        'date': date.today(), 'organization': org.id, 'account': account.id,
+        'description': 'Gasto en euros', 'status': 'completado',
+        'amount_bs': 0, 'amount_usd': 0, 'daily_rate': 40,
+        'bank_fee_bs': 0, 'bank_fee_usd': 0, 'bank_fee_real_usd': 0,
+        'amount_eur': -75, 'bank_fee_eur': 2,
+    }, organization=org)
+
+    assert form.is_valid(), form.errors
+    tx = form.save()
+    assert tx.amount_eur == Decimal('-75')
+    assert tx.bank_fee_eur == Decimal('2')
+    # Las demás pistas de moneda quedan en cero
+    assert tx.amount_bs == 0 and tx.amount_usd == 0 and tx.real_dollars == 0
+
+
+@pytest.mark.django_db
+def test_balances_por_moneda_en_organizacion_mixta():
+    """Los saldos de cada moneda se agregan por separado, sin mezclarse."""
+    from organizations.views import balance_aggregates, currency_totals, organization_currencies
+
+    org = Organization.objects.create(name='Org Mixta')
+    acc_bs = Account.objects.create(
+        organization=org, currency=Account.CURRENCY_BS, bank_code='0102',
+        bank_name='Banco de Venezuela, S.A. Banco Universal', rif='J1', 
+        account_number='01021234567890123456', holder='T', name='Bs',
+    )
+    acc_usd = Account.objects.create(
+        organization=org, currency=Account.CURRENCY_USD, bank_code='',
+        bank_name='Bank of America', rif='J2',
+        account_number='01021234567890123457', holder='T', name='Usd',
+    )
+    acc_eur = _eur_account(org, name='Eur')
+
+    common = dict(organization=org, date=date.today(), daily_rate=40, status='completado')
+    Transaction.objects.create(account=acc_bs, description='bs', amount_bs=400, amount_usd=10, **common)
+    Transaction.objects.create(account=acc_usd, description='usd', amount_bs=0, amount_usd=0, real_dollars=30, **common)
+    Transaction.objects.create(account=acc_eur, description='eur', amount_bs=0, amount_usd=0, amount_eur=20, **common)
+    Transaction.objects.create(account=acc_eur, description='eur gasto', amount_bs=0, amount_usd=0, amount_eur=-5, **common)
+
+    qs = Transaction.objects.filter(organization=org)
+    balances = qs.aggregate(**balance_aggregates())
+    assert balances['balance_bs'] == 400
+    assert balances['balance_usd'] == 10
+    assert balances['balance_real_usd'] == 30
+    assert balances['balance_eur'] == 15
+
+    totals = currency_totals(qs)
+    assert totals['income_eur'] == 20
+    assert totals['expense_eur'] == 5
+
+    assert organization_currencies(org.id) == {'BS', 'USD', 'EUR'}

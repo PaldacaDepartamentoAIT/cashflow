@@ -12,8 +12,8 @@
     <div>
         <h2 class="cf-page-title">
             <i class="fa-solid fa-wallet"></i> {{ account.name }}
-            <span class="cf-badge cf-badge--{% if account.currency == 'USD' %}info{% else %}success{% endif %} cf-ms-2" style="font-size: 0.65rem; vertical-align: middle;">
-                {% if account.currency == 'USD' %}Cuenta en Dólares{% else %}Cuenta en Bolívares{% endif %}
+            <span class="cf-badge cf-badge--{% if account.currency == 'USD' %}info{% elif account.currency == 'EUR' %}primary{% else %}success{% endif %} cf-ms-2" style="font-size: 0.65rem; vertical-align: middle;">
+                {% if account.currency == 'USD' %}Cuenta en Dólares{% elif account.currency == 'EUR' %}Cuenta en Euros{% else %}Cuenta en Bolívares{% endif %}
             </span>
         </h2>
         <nav class="cf-breadcrumb" aria-label="breadcrumb">
@@ -23,10 +23,10 @@
         </nav>
     </div>
     <div class="cf-flex cf-gap-2">
-        <a href="{% url 'exportar_pdf_transacciones' %}?report_type={% if account.currency == 'USD' %}real{% else %}bcv{% endif %}&filter_type={{ filter_type }}&date_from={{ date_from }}&date_to={{ date_to }}&category={{ selected_category }}&search={{ search }}&account={{ account.id }}&tx_filter={{ tx_filter }}" class="cf-btn cf-btn--outline-danger" target="_blank">
+        <a href="{% url 'exportar_pdf_transacciones' %}?report_type={% if account.currency == 'USD' %}real{% elif account.currency == 'EUR' %}eur{% else %}bcv{% endif %}&filter_type={{ filter_type }}&date_from={{ date_from }}&date_to={{ date_to }}&category={{ selected_category }}&search={{ search }}&account={{ account.id }}&tx_filter={{ tx_filter }}" class="cf-btn cf-btn--outline-danger" target="_blank">
             <i class="fa-solid fa-file-pdf"></i> Reporte PDF
         </a>
-        <a href="{% url 'exportar_xlsx_transacciones' %}?report_type={% if account.currency == 'USD' %}real{% else %}bcv{% endif %}&filter_type={{ filter_type }}&date_from={{ date_from }}&date_to={{ date_to }}&category={{ selected_category }}&search={{ search }}&account={{ account.id }}&tx_filter={{ tx_filter }}" class="cf-btn cf-btn--outline-success" target="_blank">
+        <a href="{% url 'exportar_xlsx_transacciones' %}?report_type={% if account.currency == 'USD' %}real{% elif account.currency == 'EUR' %}eur{% else %}bcv{% endif %}&filter_type={{ filter_type }}&date_from={{ date_from }}&date_to={{ date_to }}&category={{ selected_category }}&search={{ search }}&account={{ account.id }}&tx_filter={{ tx_filter }}" class="cf-btn cf-btn--outline-success" target="_blank">
             <i class="fa-solid fa-file-excel"></i> Reporte Excel
         </a>
         <a href="{% url 'lista_transacciones' %}" class="cf-btn cf-btn--outline">
@@ -46,6 +46,8 @@
             <div class="currency-usd-content">
                 {% if account.currency == 'USD' %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.balance_real_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
+                {% elif account.currency == 'EUR' %}
+                <h3 class="cf-fw-bold cf-mb-1">{{ totals.balance_eur|intcomma }} <span class="cf-fs-sm">€</span></h3>
                 {% else %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.balance_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
                 <div style="opacity: 0.85;">{{ totals.balance_bs|intcomma }} Bs.</div>
@@ -54,6 +56,8 @@
             <div class="currency-bs-content cf-hidden">
                 {% if account.currency == 'USD' %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.balance_real_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
+                {% elif account.currency == 'EUR' %}
+                <h3 class="cf-fw-bold cf-mb-1">{{ totals.balance_eur|intcomma }} <span class="cf-fs-sm">€</span></h3>
                 {% else %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.balance_bs|intcomma }} <span class="cf-fs-sm">Bs.</span></h3>
                 <div style="opacity: 0.85;">{{ totals.balance_usd|intcomma }} $</div>
@@ -70,6 +74,8 @@
             <div class="currency-usd-content">
                 {% if account.currency == 'USD' %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.income_real_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
+                {% elif account.currency == 'EUR' %}
+                <h3 class="cf-fw-bold cf-mb-1">{{ totals.income_eur|intcomma }} <span class="cf-fs-sm">€</span></h3>
                 {% else %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.income_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
                 <div style="opacity: 0.85;">{{ totals.income_bs|intcomma }} Bs.</div>
@@ -78,6 +84,8 @@
             <div class="currency-bs-content cf-hidden">
                 {% if account.currency == 'USD' %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.income_real_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
+                {% elif account.currency == 'EUR' %}
+                <h3 class="cf-fw-bold cf-mb-1">{{ totals.income_eur|intcomma }} <span class="cf-fs-sm">€</span></h3>
                 {% else %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.income_bs|intcomma }} <span class="cf-fs-sm">Bs.</span></h3>
                 <div style="opacity: 0.85;">{{ totals.income_usd|intcomma }} $</div>
@@ -94,6 +102,8 @@
             <div class="currency-usd-content">
                 {% if account.currency == 'USD' %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.expense_real_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
+                {% elif account.currency == 'EUR' %}
+                <h3 class="cf-fw-bold cf-mb-1">{{ totals.expense_eur|intcomma }} <span class="cf-fs-sm">€</span></h3>
                 {% else %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.expense_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
                 <div style="opacity: 0.85;">{{ totals.expense_bs|intcomma }} Bs.</div>
@@ -102,6 +112,8 @@
             <div class="currency-bs-content cf-hidden">
                 {% if account.currency == 'USD' %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.expense_real_usd|intcomma }} <span class="cf-fs-sm">$</span></h3>
+                {% elif account.currency == 'EUR' %}
+                <h3 class="cf-fw-bold cf-mb-1">{{ totals.expense_eur|intcomma }} <span class="cf-fs-sm">€</span></h3>
                 {% else %}
                 <h3 class="cf-fw-bold cf-mb-1">{{ totals.expense_bs|intcomma }} <span class="cf-fs-sm">Bs.</span></h3>
                 <div style="opacity: 0.85;">{{ totals.expense_usd|intcomma }} $</div>
@@ -245,16 +257,17 @@
                     <tr>
                         <td class="cf-ps-4 col-date">{{ trans.date|date:"d/m/Y" }}</td>
                         <td class="col-desc cf-hide-phone" title="{{ trans.description }}">{{ trans.description }}</td>
-                        <td class="cf-fw-bold col-amount {% if trans.real_dollars < 0 or trans.amount_usd < 0 %}cf-text-danger{% else %}cf-text-success{% endif %}">
+                        <td class="cf-fw-bold col-amount {% if trans.real_dollars < 0 or trans.amount_eur < 0 or trans.amount_usd < 0 %}cf-text-danger{% else %}cf-text-success{% endif %}">
                             {% if trans.real_dollars %}{{ trans.real_dollars|intcomma }} $
+                            {% elif trans.amount_eur %}{{ trans.amount_eur|intcomma }} €
                             {% else %}{{ trans.amount_usd|intcomma }} ${% endif %}
                         </td>
                         <td class="cf-text-muted cf-fs-sm col-amount cf-hide-phone">
-                            {% if trans.real_dollars %}-
+                            {% if trans.real_dollars or trans.amount_eur %}-
                             {% else %}{{ trans.amount_bs|intcomma }} Bs.{% endif %}
                         </td>
                         <td class="col-rate cf-hide-phone">
-                            {% if trans.real_dollars %}-
+                            {% if trans.real_dollars or trans.amount_eur %}-
                             {% else %}{{ trans.daily_rate|intcomma_rate }}{% endif %}
                         </td>
                         <td class="col-category cf-hide-phone">
@@ -279,8 +292,8 @@
                             <div class="cf-btn-group">
                                 <button class="cf-btn cf-btn--sm cf-btn--outline-secondary" onclick="viewDetail({{ trans.id }})" title="Ver"><i class="fa-solid fa-eye"></i></button>
                                 {% if not user_is_viewer %}
-                                <button class="cf-btn cf-btn--sm cf-btn--outline-info" onclick="duplicateTransaction('{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}')" title="Duplicar"><i class="fa-solid fa-copy"></i></button>
-                                <button class="cf-btn cf-btn--sm cf-btn--outline" onclick="editTransaction({{ trans.id }}, '{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}')" title="Editar"><i class="fa-solid fa-pencil"></i></button>
+                                <button class="cf-btn cf-btn--sm cf-btn--outline-info" onclick="duplicateTransaction('{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}', '{{ trans.amount_eur|unlocalize }}', '{{ trans.bank_fee_eur|unlocalize }}')" title="Duplicar"><i class="fa-solid fa-copy"></i></button>
+                                <button class="cf-btn cf-btn--sm cf-btn--outline" onclick="editTransaction({{ trans.id }}, '{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}', '{{ trans.amount_eur|unlocalize }}', '{{ trans.bank_fee_eur|unlocalize }}')" title="Editar"><i class="fa-solid fa-pencil"></i></button>
                                 <button class="cf-btn cf-btn--sm cf-btn--outline-danger" onclick="confirmDelete({{ trans.id }})" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
                                 {% endif %}
                             </div>
@@ -289,8 +302,8 @@
                             <button type="button" class="cf-btn cf-btn--sm cf-btn--outline" title="Acciones" onclick="openMobileActionSheet({
                                 view: function () { viewDetail({{ trans.id }}); },
                                 {% if not user_is_viewer %}
-                                duplicate: function () { duplicateTransaction('{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}'); },
-                                edit: function () { editTransaction({{ trans.id }}, '{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}'); },
+                                duplicate: function () { duplicateTransaction('{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}', '{{ trans.amount_eur|unlocalize }}', '{{ trans.bank_fee_eur|unlocalize }}'); },
+                                edit: function () { editTransaction({{ trans.id }}, '{{ trans.date|date:"Y-m-d" }}', '{{ trans.account.id }}', '{{ trans.reference_number|default:""|escapejs }}', '{{ trans.description|escapejs }}', '{{ trans.notes|default:""|escapejs }}', '{% for c in trans.categories.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}', '{{ trans.cost_center.id|default:"" }}', '{{ trans.project.id|default:"" }}', '{{ trans.valuation.id|default:"" }}', '{{ trans.status }}', '{{ trans.amount_bs|unlocalize }}', '{{ trans.amount_usd|unlocalize }}', '{{ trans.daily_rate|unlocalize }}', '{{ trans.bank_fee_bs|unlocalize }}', '{{ trans.bank_fee_usd|unlocalize }}', '{{ trans.real_dollars|unlocalize }}', '{{ trans.bank_fee_real_usd|unlocalize }}', '{{ trans.amount_eur|unlocalize }}', '{{ trans.bank_fee_eur|unlocalize }}'); },
                                 delete: function () { confirmDelete({{ trans.id }}); },
                                 {% endif %}
                             })"><i class="fa-solid fa-ellipsis"></i></button>
@@ -366,16 +379,20 @@
                         <div class="cf-hidden">{{ form.amount_usd }}{{ form.amount_bs }}</div>
                     </div>
 
-                    <div class="cf-form-group">
-                        <div class="cf-flex cf-justify-between cf-items-center cf-mb-2">
-                            <label class="cf-label cf-mb-0">Dólares Reales</label>
-                            <div class="cf-switch cf-mb-0">
-                                <input type="checkbox" id="realDollarSwitch">
-                                <label for="realDollarSwitch" class="cf-fs-sm">Usar Dólares Reales</label>
-                            </div>
-                        </div>
-                        <div id="realDollarInputContainer" style="display: none;">
+                    <div class="cf-form-group" id="realDollarInputContainer" style="display: none;">
+                        <label class="cf-label">Dólares</label>
+                        <div class="cf-input-group">
+                            <span class="cf-input-group__addon">$</span>
                             {{ form.real_dollars }}
+                        </div>
+                    </div>
+
+                    {# Las cuentas en euros solo mueven euros: el contenedor se muestra según la moneda de la cuenta seleccionada. #}
+                    <div class="cf-form-group" id="eurInputGroup" style="display: none;">
+                        <label class="cf-label">Euros</label>
+                        <div class="cf-input-group">
+                            <span class="cf-input-group__addon">€</span>
+                            {{ form.amount_eur }}
                         </div>
                     </div>
 
@@ -442,6 +459,14 @@
                                 <div class="cf-input-group">
                                     <span class="cf-input-group__addon">$</span>
                                     {{ form.bank_fee_real_usd }}
+                                </div>
+                            </div>
+                            <!-- Comisión Euros -->
+                            <div class="cf-form-group cf-mb-0" id="eurFeeInputGroup" style="display: none;">
+                                <label class="cf-label">Monto Comisión (Euros)</label>
+                                <div class="cf-input-group">
+                                    <span class="cf-input-group__addon">€</span>
+                                    {{ form.bank_fee_eur }}
                                 </div>
                             </div>
                         </div>

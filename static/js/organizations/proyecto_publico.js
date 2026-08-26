@@ -8,11 +8,6 @@ function initProyectoPublico(config) {
         const filterForm = document.querySelector('.cf-filter-form');
         const formData = new URLSearchParams(new FormData(filterForm));
 
-        const activeTab = document.querySelector('.cf-tab.is-active');
-        if (activeTab) {
-            const urlParams = new URLSearchParams(activeTab.getAttribute('href').split('?')[1]);
-            if (urlParams.has('view_mode')) formData.set('view_mode', urlParams.get('view_mode'));
-        }
 
         const url = window.location.pathname + '?' + formData.toString();
         fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
@@ -84,16 +79,6 @@ function initProyectoPublico(config) {
             const txFilterSelect = filterForm.querySelector('select[name="tx_filter"]');
             if (txFilterSelect) {
                 txFilterSelect.addEventListener('change', function () {
-                    const val = this.value;
-                    const tabs = document.querySelectorAll('.cf-tab');
-                    if (val === 'real' || val === 'bcv') {
-                        tabs.forEach(tab => {
-                            const urlParams = new URLSearchParams(tab.getAttribute('href').split('?')[1]);
-                            const isMatch = (val === 'real' && urlParams.get('view_mode') === 'real') ||
-                                            (val === 'bcv' && urlParams.get('view_mode') === 'bcv');
-                            tab.classList.toggle('is-active', isMatch);
-                        });
-                    }
                     updateDashboard();
                 });
             }
