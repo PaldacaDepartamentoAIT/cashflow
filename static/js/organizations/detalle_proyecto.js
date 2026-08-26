@@ -471,9 +471,11 @@ function initDetalleProyecto(config) {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 const newContent = doc.getElementById('transactions-container');
-                const newKpis = doc.getElementById('projectSummaryCol');
+                // Los KPIs viven ahora en #kpi-container, igual que en Transacciones.
+                const newKpis = doc.getElementById('kpi-container');
+                const kpiEl = document.getElementById('kpi-container');
                 if (newContent) container.innerHTML = newContent.innerHTML;
-                if (newKpis) document.getElementById('projectSummaryCol').innerHTML = newKpis.innerHTML;
+                if (newKpis && kpiEl) kpiEl.innerHTML = newKpis.innerHTML;
                 updateCharts(doc);
                 window.history.pushState({}, '', url);
             })
@@ -694,20 +696,19 @@ function initDetalleProyecto(config) {
         const btn = document.getElementById('toggleValuationsBtn');
         const addBtn = document.getElementById('addValuationBtn');
         const container = document.getElementById('valuationsContainer');
-        const summaryCol = document.getElementById('projectSummaryCol');
-        if (!container || !btn || !summaryCol) return;
-        
+        if (!container || !btn) return;
+
+        // Los KPIs ya no comparten fila con las valuaciones: el panel ocupa su
+        // propia fila, así que solo hay que mostrarlo u ocultarlo.
         if (container.classList.contains('cf-hidden')) {
             container.classList.remove('cf-hidden');
             container.style.display = 'flex';
             if (addBtn) addBtn.style.display = 'inline-flex';
-            summaryCol.classList.add('project-summary-col--split');
             btn.innerHTML = '<i class="fa-solid fa-eye-slash cf-me-1"></i>Ocultar Valuaciones';
         } else {
             container.classList.add('cf-hidden');
             container.style.display = 'none';
             if (addBtn) addBtn.style.display = 'none';
-            summaryCol.classList.remove('project-summary-col--split');
             btn.innerHTML = '<i class="fa-solid fa-gear cf-me-1"></i>Gestionar Valuaciones';
         }
     };

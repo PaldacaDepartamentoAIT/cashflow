@@ -242,7 +242,7 @@
                             </a>
                         </th>
                         <th class="cf-hide-phone">Descripción</th>
-                        <th>Monto (USD)</th>
+                        <th>Monto</th>
                         <th class="cf-hide-phone">Monto (BS)</th>
                         <th class="cf-hide-phone">Tasa</th>
                         <th class="cf-hide-phone">Categoría</th>
@@ -431,6 +431,8 @@
                     <div class="cf-form-group" style="grid-column: 1 / -1;"><label class="cf-label">Descripción</label>{{ form.description }}</div>
                     <div class="cf-form-group" style="grid-column: 1 / -1;"><label class="cf-label">Notas</label>{{ form.notes }}</div>
 
+                    {# Comisión bancaria oculta en la interfaz; los campos siguen en el DOM para no perder las ya registradas al editar. #}
+                    <div class="cf-hidden" aria-hidden="true" style="display: none;">
                     <!-- Comisión Bancaria -->
                     <div class="cf-form-group" style="grid-column: 1 / -1;">
                         <div class="cf-flex cf-items-center cf-gap-2">
@@ -470,6 +472,7 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
                     </div>
 
                     <div class="cf-form-group cf-mb-0" id="valuationContainer" style="grid-column: 1 / -1; display: none;">

@@ -1099,3 +1099,102 @@
 .cf-chart-card__title {
     min-height: 3rem;
 }
+
+/* --- Tarjetas de KPIs: un renglón por moneda --- */
+/* Compartido por el dashboard, Transacciones y Proyectos. */
+/* Mismo patrón en Vista global, Ingresos y Gastos: etiqueta a la izquierda,
+   importe a la derecha y las filas repartidas por el alto de la tarjeta. */
+
+/* Sin height:100% la tarjeta se estira con la rejilla pero el contenido se
+   queda arriba y deja un hueco debajo. */
+.cf-kpi-card .cf-card__body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.cf-kpi-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.cf-kpi-card__header h5 {
+    margin-bottom: 0;
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+}
+
+/* La cabecera de Vista global va centrada y sin icono a la derecha. */
+.cf-kpi-card--dark .cf-kpi-card__header {
+    justify-content: center;
+    opacity: 0.9;
+}
+
+.cf-kpi-card--dark .cf-kpi-card__header i {
+    font-size: 1.15rem;
+}
+
+/* Las filas se reparten el alto disponible, así no queda espacio muerto. */
+.cf-kpi-rows {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-evenly;
+    width: 100%;
+}
+
+.cf-kpi-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0.15rem;
+    min-width: 0;
+}
+
+.cf-kpi-row + .cf-kpi-row {
+    border-top: 1px solid var(--cf-kpi-row-sep, var(--border-subtle));
+}
+
+/* Sobre el card oscuro el separador y la etiqueta necesitan otro tono. */
+.cf-kpi-card--dark {
+    --cf-kpi-row-sep: rgba(255, 255, 255, 0.18);
+}
+
+.cf-kpi-row__label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    opacity: 0.7;
+    white-space: nowrap;
+}
+
+.cf-kpi-row__amounts {
+    text-align: right;
+    min-width: 0;
+}
+
+.cf-kpi-row__value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.cf-kpi-row__pending {
+    display: block;
+    opacity: 0.7;
+    font-size: 0.68rem;
+    margin-top: 2px;
+    white-space: nowrap;
+}
+
+/* Con una sola moneda la cifra toma el protagonismo. */
+.cf-kpi-row:only-child .cf-kpi-row__value {
+    font-size: 2rem;
+}

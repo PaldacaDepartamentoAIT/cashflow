@@ -1,61 +1,9 @@
-.project-detail-kpi {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.25rem;
-}
-
-/* Adjust KPI columns when the valuations panel is open or on medium screens to avoid cutting off text */
-.project-summary-col--split .project-detail-kpi {
-    grid-template-columns: repeat(2, 1fr);
-}
-
-@media (max-width: 1300px) {
-    .project-detail-kpi {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 480px) {
-    .project-detail-kpi,
-    .project-summary-col--split .project-detail-kpi {
-        grid-template-columns: 1fr;
-    }
-}
+/* Los KPIs del proyecto usan el bloque compartido con Transacciones
+   (partials/kpi_balances.html); aquí solo queda el panel de valuaciones. */
 
 .project-valuations-panel:not(.cf-hidden) {
     display: flex !important;
     flex-direction: column;
-}
-
-@media (min-width: 993px) {
-    /* Base behavior: 3 columns */
-    .cf-grid--kpi {
-        grid-template-columns: repeat(3, 1fr);
-    }
-
-    /* When valuations are HIDDEN, the summary takes all 3 columns */
-    #projectSummaryCol:not(.project-summary-col--split) {
-        grid-column: span 3;
-    }
-
-    /* When valuations are VISIBLE, we want a 2/3 and 1/3 split */
-    #projectSummaryCol.project-summary-col--split {
-        grid-column: span 2;
-    }
-    .project-valuations-panel:not(.cf-hidden) {
-        grid-column: span 1;
-    }
-}
-
-@media (max-width: 992px) {
-    /* Stacked layout */
-    .cf-grid--kpi {
-        grid-template-columns: 1fr;
-    }
-    #projectSummaryCol, 
-    .project-valuations-panel {
-        grid-column: span 1 !important;
-    }
 }
 
 .valuation-item {

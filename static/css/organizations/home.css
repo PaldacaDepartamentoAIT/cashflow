@@ -1,21 +1,3 @@
-.home-kpi-primary .cf-stat-value {
-    line-height: 1.2;
-}
-
-.home-kpi-primary .cf-card__body {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.home-kpi-primary .cf-icon {
-    font-size: 2rem;
-    opacity: 0.85;
-    margin-bottom: 0.75rem;
-}
-
 .home-rates-scroll {
     overflow-y: auto;
 }

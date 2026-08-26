@@ -48,25 +48,20 @@ class SuperadminPanelTests(TestCase):
         self.assertRedirects(response, reverse('superadmin_usuarios'))
         self.assertTrue(User.objects.filter(pk=self.superadmin.pk).exists())
 
-    def test_wizard_creates_bs_account_with_bank_fields(self):
+    def test_wizard_creates_bs_account(self):
         self.client.login(username='admin', password='password123')
         response = self.client.post(reverse('superadmin_crear_organizacion_wizard'), {
             'name': 'Empresa Test',
             'org_users': [self.user.pk],
             'account_currency': ['BS'],
-            'account_bank_code': ['0105'],
-            'account_bank_name': ['Mercantil Banco, C.A. Banco Universal'],
-            'account_rif': ['J000029610'],
-            'account_number': ['01050123456789012345'],
-            'account_holder': ['Empresa Test C.A.'],
+            'account_name': ['Caja Bs.'],
             'account_balance': ['1000.00'],
         })
         self.assertRedirects(response, reverse('superadmin_organizaciones'))
         org = Organization.objects.get(name='Empresa Test')
         account = Account.objects.get(organization=org)
         self.assertEqual(account.currency, Account.CURRENCY_BS)
-        self.assertEqual(account.bank_code, '0105')
-        self.assertEqual(account.account_number, '01050123456789012345')
+        self.assertEqual(account.name, 'Caja Bs.')
         self.assertEqual(Transaction.objects.filter(account=account).count(), 1)
         tx = Transaction.objects.get(account=account)
         self.assertEqual(tx.amount_bs, 1000)
@@ -78,11 +73,7 @@ class SuperadminPanelTests(TestCase):
             'name': 'Empresa USD',
             'org_users': [self.user.pk],
             'account_currency': ['USD'],
-            'account_bank_code': [''],
-            'account_bank_name': ['Bank of America'],
-            'account_rif': ['J123456789'],
-            'account_number': ['1234567890123456'],
-            'account_holder': ['Empresa USD LLC'],
+            'account_name': ['Caja USD'],
             'account_balance': ['250.00'],
         })
         self.assertRedirects(response, reverse('superadmin_organizaciones'))

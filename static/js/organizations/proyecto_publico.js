@@ -16,9 +16,11 @@ function initProyectoPublico(config) {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 const newContent = doc.getElementById('transactions-container');
-                const newKpis = doc.getElementById('projectSummaryCol');
+                // Los KPIs viven ahora en #kpi-container, igual que en Transacciones.
+                const newKpis = doc.getElementById('kpi-container');
+                const kpiEl = document.getElementById('kpi-container');
                 if (newContent) container.innerHTML = newContent.innerHTML;
-                if (newKpis) document.getElementById('projectSummaryCol').innerHTML = newKpis.innerHTML;
+                if (newKpis && kpiEl) kpiEl.innerHTML = newKpis.innerHTML;
                 updateCharts(doc);
                 window.history.pushState({}, '', url);
             })

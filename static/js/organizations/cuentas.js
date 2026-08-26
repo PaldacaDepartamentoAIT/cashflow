@@ -11,45 +11,12 @@ function initCuentas(config) {
 
     var form = document.getElementById('accountForm');
     var currencyField = document.getElementById('id_account_currency');
-    var bankSelect = document.getElementById('id_bank_select');
-    var bankCodeField = document.getElementById('id_bank_code');
-    var bankNameField = document.getElementById('id_bank_name');
-    var rifField = form.querySelector('[name="rif"]');
     var rateFieldWrap = document.getElementById('rateFieldWrap');
     var dailyRateField = form.querySelector('[name="daily_rate"]');
     var initialBalanceLabel = document.getElementById('initialBalanceLabel');
 
     function currentCurrency() {
         return currencyField ? currencyField.value : 'BS';
-    }
-
-    function updateBankSelectUrls() {
-        if (!bankSelect) return;
-        bankSelect.dataset.banksUrl = currentCurrency() === 'BS' ? config.bancosBsUrl : config.bancosUsdUrl;
-    }
-
-    function refreshBankSelect(selectedCode, selectedName) {
-        updateBankSelectUrls();
-        if (currentCurrency() === 'BS') {
-            return CFBanks.populateBsSelect(bankSelect, selectedCode || '').then(function () {
-                CFBanks.bindBsSelect(bankSelect, bankNameField);
-            });
-        }
-        return CFBanks.populateUsdSelect(bankSelect, selectedName || bankNameField.value || '').then(function () {
-            CFBanks.bindUsdSelect(bankSelect, bankNameField);
-        });
-    }
-
-    function syncBankHiddenFields() {
-        if (!bankSelect) return;
-        if (currentCurrency() === 'BS') {
-            var option = bankSelect.options[bankSelect.selectedIndex];
-            if (bankCodeField) bankCodeField.value = bankSelect.value;
-            if (bankNameField) bankNameField.value = option ? (option.dataset.bankName || '') : '';
-        } else {
-            if (bankCodeField) bankCodeField.value = '';
-            if (bankNameField) bankNameField.value = bankSelect.value;
-        }
     }
 
     var BALANCE_LABELS = {
@@ -72,7 +39,6 @@ function initCuentas(config) {
             dailyRateField.value = config.bcvRate;
             dailyRateField.readOnly = true;
         }
-        refreshBankSelect(bankCodeField ? bankCodeField.value : '', bankNameField ? bankNameField.value : '');
     }
 
     window.resetForm = function () {
@@ -93,27 +59,17 @@ function initCuentas(config) {
 
         form.action = '/cuentas/guardar/' + id + '/';
         document.getElementById('modalTitle').innerText = 'Editar Cuenta';
+        // El saldo inicial solo se pide al crear la cuenta.
         document.getElementById('initialAmountFields').classList.add('cf-hidden');
 
         if (currencyField) {
             currencyField.value = account.currency;
             currencyField.disabled = true;
         }
-        if (bankCodeField) bankCodeField.value = account.bank_code || '';
-        if (bankNameField) bankNameField.value = account.bank_name || '';
-        form.querySelector('[name="rif"]').value = account.rif || '';
-        form.querySelector('[name="account_number"]').value = account.account_number || '';
-        form.querySelector('[name="holder"]').value = account.holder || '';
-        if (form.querySelector('[name="name"]')) {
-            form.querySelector('[name="name"]').value = account.name || '';
-        }
+        var nameField = form.querySelector('[name="name"]');
+        if (nameField) nameField.value = account.name || '';
 
-        refreshBankSelect(account.bank_code, account.bank_name).then(function () {
-            if (account.currency === 'BS' && bankSelect) bankSelect.value = account.bank_code || '';
-            if (account.currency === 'USD' && bankSelect) bankSelect.value = account.bank_name || '';
-            syncBankHiddenFields();
-        });
-
+        updateCurrencyUI();
         CFModal.open('accountModal');
     };
 
@@ -127,13 +83,9 @@ function initCuentas(config) {
         currencyField.addEventListener('change', updateCurrencyUI);
     }
 
-    if (bankSelect) {
-        bankSelect.addEventListener('change', syncBankHiddenFields);
-    }
-
     if (form) {
         form.addEventListener('submit', function () {
-            syncBankHiddenFields();
+            // El select deshabilitado no se envía: se rehabilita justo antes.
             if (currencyField && currencyField.disabled) {
                 currencyField.disabled = false;
             }

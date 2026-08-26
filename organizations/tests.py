@@ -28,11 +28,6 @@ class TransactionAccessTest(TestCase):
         self.account_b = Account.objects.create(
             organization=self.org_b,
             currency=Account.CURRENCY_BS,
-            bank_code='0102',
-            bank_name='Banco de Venezuela, S.A. Banco Universal',
-            rif='J123456789',
-            account_number='01021234567890123456',
-            holder='Titular de Prueba',
             name='Account B',
         )
         self.category_b = Category.objects.create(organization=self.org_b, name='Category B')
@@ -206,11 +201,6 @@ def test_crear_cuenta_bs_registra_equivalente_usd(client):
 
     response = client.post(reverse('crear_cuenta'), {
         'currency': Account.CURRENCY_BS,
-        'bank_code': '0102',
-        'bank_name': 'Banco de Venezuela, S.A. Banco Universal',
-        'rif': 'J-12345678-9',
-        'account_number': '01021234567890123456',
-        'holder': 'Titular de Prueba',
         'name': 'Cuenta de Prueba BS',
         'initial_balance': '36500.00',
         'daily_rate': '36.5000',
@@ -221,44 +211,6 @@ def test_crear_cuenta_bs_registra_equivalente_usd(client):
     assert float(tx.amount_bs) == 36500.0
     assert float(tx.amount_usd) == 1000.0
     assert float(tx.daily_rate) == 36.5
-
-
-@pytest.mark.django_db
-def test_usuario_normal_no_crea_cuenta_con_banco_invalido(client, capsys, settings):
-    settings.DEBUG = True
-
-    user = User.objects.create_user(username='usuario_normal', password='password')
-    org = Organization.objects.create(name='Org Normal')
-    OrganizationAccess.objects.create(user=user, organization=org)
-
-    client.force_login(user)
-    session = client.session
-    session['org_id'] = org.id
-    session['org_name'] = org.name
-    session.save()
-
-    response = client.post(reverse('crear_cuenta'), {
-        'currency': Account.CURRENCY_BS,
-        'bank_code': '9999',
-        'bank_name': 'Banco Inexistente',
-        'rif': 'J-12345678-9',
-        'account_number': '01021234567890123456',
-        'holder': 'Titular de Prueba',
-        'name': 'Cuenta de Prueba Invalida',
-        'initial_balance': '100.00',
-        'daily_rate': '36.5000',
-    }, follow=True)
-
-    messages = [str(message) for message in get_messages(response.wsgi_request)]
-    captured = capsys.readouterr()
-    debug_output = captured.out + captured.err
-
-    assert response.status_code == 200
-    assert user.is_superuser is False
-    assert Account.objects.filter(organization=org).count() == 0
-    assert Transaction.objects.filter(organization=org).count() == 0
-    assert any('Seleccione un banco válido en bolívares.' in message for message in messages)
-    assert 'cuenta.guardar.error' in debug_output
 
 
 @pytest.mark.django_db
@@ -276,8 +228,6 @@ def test_get_report_data_aplica_filtros(client):
         organization=org,
         currency=Account.CURRENCY_BS,
         name='Cuenta Test',
-        bank_name='Banco de Venezuela',
-        holder='Titular Test'
     )
     
     cat1 = Category.objects.create(organization=org, name='Cat A', color='#111111')
@@ -395,11 +345,6 @@ def _eur_account(org, name='Cuenta EUR'):
     return Account.objects.create(
         organization=org,
         currency=Account.CURRENCY_EUR,
-        bank_code='',
-        bank_name='JPMorgan Chase & Co.',
-        rif='J123456789',
-        account_number='01021234567890123456',
-        holder='Titular de Prueba',
         name=name,
     )
 
@@ -448,9 +393,7 @@ def test_transaction_form_rechaza_euros_en_cuenta_bs():
 
     org = Organization.objects.create(name='Org BS Form')
     account = Account.objects.create(
-        organization=org, currency=Account.CURRENCY_BS, bank_code='0102',
-        bank_name='Banco de Venezuela, S.A. Banco Universal', rif='J123456789',
-        account_number='01021234567890123456', holder='Titular', name='Cuenta Bs',
+        organization=org, currency=Account.CURRENCY_BS, name='Cuenta Bs',
     )
 
     form = TransactionForm(data={
@@ -495,14 +438,10 @@ def test_balances_por_moneda_en_organizacion_mixta():
 
     org = Organization.objects.create(name='Org Mixta')
     acc_bs = Account.objects.create(
-        organization=org, currency=Account.CURRENCY_BS, bank_code='0102',
-        bank_name='Banco de Venezuela, S.A. Banco Universal', rif='J1', 
-        account_number='01021234567890123456', holder='T', name='Bs',
+        organization=org, currency=Account.CURRENCY_BS, name='Bs',
     )
     acc_usd = Account.objects.create(
-        organization=org, currency=Account.CURRENCY_USD, bank_code='',
-        bank_name='Bank of America', rif='J2',
-        account_number='01021234567890123457', holder='T', name='Usd',
+        organization=org, currency=Account.CURRENCY_USD, name='Usd',
     )
     acc_eur = _eur_account(org, name='Eur')
 
@@ -524,3 +463,28 @@ def test_balances_por_moneda_en_organizacion_mixta():
     assert totals['expense_eur'] == 5
 
     assert organization_currencies(org.id) == {'BS', 'USD', 'EUR'}
+
+
+# --- Higiene de plantillas ---
+
+
+def test_no_hay_comentarios_django_multilinea():
+    """Django solo reconoce {# ... #} dentro de una misma línea.
+
+    Si un comentario abarca varias líneas, el lexer no lo detecta y el texto se
+    renderiza tal cual en la página. Este test evita que vuelva a colarse.
+    """
+    import glob
+    from pathlib import Path
+
+    base = Path(__file__).resolve().parent.parent / 'templates'
+    ofensores = []
+    for ruta in glob.glob(str(base / '**' / '*.html'), recursive=True):
+        for numero, linea in enumerate(Path(ruta).read_text(encoding='utf-8').splitlines(), 1):
+            if '{#' in linea and '#}' not in linea:
+                ofensores.append(f'{Path(ruta).relative_to(base)}:{numero}')
+
+    assert not ofensores, (
+        'Comentarios {# #} multilínea: Django los renderiza como texto visible. '
+        'Deben caber en una sola línea. Encontrados en: ' + ', '.join(ofensores)
+    )

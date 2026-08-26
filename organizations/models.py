@@ -33,13 +33,10 @@ class Account(models.Model):
         (CURRENCY_EUR, 'Euros'),
     ]
 
+    # Una cuenta es solo una forma de agrupar transacciones de un mismo tipo:
+    # basta con su nombre y su moneda. No se guardan datos bancarios.
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='accounts', verbose_name="Organización")
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default=CURRENCY_BS, verbose_name="Moneda")
-    bank_code = models.CharField(max_length=10, blank=True, verbose_name="Código de banco")
-    bank_name = models.CharField(max_length=255, verbose_name="Banco")
-    rif = models.CharField(max_length=15, verbose_name="RIF")
-    account_number = models.CharField(max_length=30, verbose_name="Número de cuenta")
-    holder = models.CharField(max_length=255, verbose_name="Titular")
     name = models.CharField(max_length=255, verbose_name="Nombre de la cuenta", default="Cuenta Principal")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
 

@@ -36,59 +36,27 @@ function initSuperadminOrgs(config) {
     }
 
     function buildAccountRow(currency) {
+        // Una cuenta solo agrupa transacciones: basta con su nombre y su moneda.
         var row = document.createElement('div');
         row.className = 'sa-wizard-account-row sa-wizard-account-row--full';
-        var isBs = currency === 'BS';
         var BALANCE_LABELS = { BS: 'Saldo inicial (Bs.)', USD: 'Saldo inicial (USD)', EUR: 'Saldo inicial (EUR)' };
         var balanceLabel = BALANCE_LABELS[currency] || BALANCE_LABELS.BS;
         row.innerHTML =
             '<input type="hidden" name="account_currency" value="' + currency + '">' +
-            '<input type="hidden" name="account_bank_name" class="sa-account-bank-name" value="">' +
             '<div class="sa-wizard-account-row__fields sa-wizard-account-row__fields--wide">' +
             '<div class="cf-form-group cf-mb-0">' +
-            '<label class="cf-label cf-fs-sm">Banco</label>' +
-            '<select class="cf-select cf-select--sm sa-account-bank-select" data-banks-url="' +
-            (isBs ? config.bancosBsUrl : config.bancosUsdUrl) + '" data-currency="' + currency + '"></select>' +
-            '</div>' +
-            '<div class="cf-form-group cf-mb-0">' +
-            '<label class="cf-label cf-fs-sm">RIF</label>' +
-            '<input type="text" name="account_rif" class="cf-input cf-input--sm sa-account-rif" placeholder="J-12345678-9">' +
-            '</div>' +
-            '<div class="cf-form-group cf-mb-0">' +
-            '<label class="cf-label cf-fs-sm">Nº cuenta</label>' +
-            '<input type="text" name="account_number" class="cf-input cf-input--sm" placeholder="20 dígitos" inputmode="numeric">' +
-            '</div>' +
-            '<div class="cf-form-group cf-mb-0">' +
-            '<label class="cf-label cf-fs-sm">Titular</label>' +
-            '<input type="text" name="account_holder" class="cf-input cf-input--sm" placeholder="Nombre del titular">' +
+            '<label class="cf-label cf-fs-sm">Nombre de la cuenta</label>' +
+            '<input type="text" name="account_name" class="cf-input cf-input--sm sa-account-name" placeholder="Ej. Caja chica, Nómina...">' +
             '</div>' +
             '<div class="cf-form-group cf-mb-0">' +
             '<label class="cf-label cf-fs-sm">' + balanceLabel + '</label>' +
             '<input type="number" name="account_balance" class="cf-input cf-input--sm" step="0.01" min="0" placeholder="0.00">' +
             '</div>' +
-            (isBs ? '<input type="hidden" name="account_bank_code" class="sa-account-bank-code" value="">' :
-                '<input type="hidden" name="account_bank_code" value="">') +
             '</div>' +
             '<button type="button" class="sa-wizard-account-remove" title="Quitar cuenta"><i class="fa-solid fa-xmark"></i></button>';
 
-        var listEl = isBs ? accountsBsList : (currency === 'EUR' ? accountsEurList : accountsUsdList);
-        var bankSelect = row.querySelector('.sa-account-bank-select');
-        var bankNameInput = row.querySelector('.sa-account-bank-name');
-        var bankCodeInput = row.querySelector('.sa-account-bank-code');
-        var rifInput = row.querySelector('.sa-account-rif');
-
-        if (isBs) {
-            CFBanks.populateBsSelect(bankSelect).then(function () {
-                CFBanks.bindBsSelect(bankSelect, bankNameInput);
-            });
-            bankSelect.addEventListener('change', function () {
-                if (bankCodeInput) bankCodeInput.value = bankSelect.value;
-            });
-        } else {
-            CFBanks.populateUsdSelect(bankSelect).then(function () {
-                CFBanks.bindUsdSelect(bankSelect, bankNameInput);
-            });
-        }
+        var listEl = currency === 'BS' ? accountsBsList
+            : (currency === 'EUR' ? accountsEurList : accountsUsdList);
 
         row.querySelector('.sa-wizard-account-remove').addEventListener('click', function () {
             if (listEl.querySelectorAll('.sa-wizard-account-row').length > 1) {
@@ -112,28 +80,13 @@ function initSuperadminOrgs(config) {
     }
 
     function accountRowIsFilled(row) {
-        return row.querySelector('[name="account_rif"]').value.trim() ||
-            row.querySelector('[name="account_number"]').value.trim() ||
-            row.querySelector('[name="account_holder"]').value.trim() ||
-            row.querySelector('.sa-account-bank-select').value;
+        return !!row.querySelector('[name="account_name"]').value.trim();
     }
 
     function validateAccountRow(row, currencyLabel) {
-        var bankSelect = row.querySelector('.sa-account-bank-select');
-        var bankNameInput = row.querySelector('.sa-account-bank-name');
-        if (bankSelect.value) {
-            if (bankSelect.dataset.currency === 'BS') {
-                var option = bankSelect.options[bankSelect.selectedIndex];
-                bankNameInput.value = option.dataset.bankName || '';
-                row.querySelector('.sa-account-bank-code').value = bankSelect.value;
-            } else {
-                bankNameInput.value = bankSelect.value;
-            }
+        if (!row.querySelector('[name="account_name"]').value.trim()) {
+            return currencyLabel + ': ingrese un nombre para la cuenta.';
         }
-        if (!bankSelect.value) return currencyLabel + ': seleccione un banco de la lista antes de continuar.';
-        if (!row.querySelector('[name="account_rif"]').value.trim()) return currencyLabel + ': ingrese el RIF del titular de la cuenta.';
-        if (!row.querySelector('[name="account_number"]').value.trim()) return currencyLabel + ': ingrese el número de cuenta bancaria.';
-        if (!row.querySelector('[name="account_holder"]').value.trim()) return currencyLabel + ': ingrese el nombre del titular de la cuenta.';
         return '';
     }
 

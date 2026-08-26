@@ -139,13 +139,6 @@ CURRENCY_TRACKS = (
     ('eur', 'amount_eur', 'bank_fee_eur'),
 )
 
-#: Ventanas de tiempo de los filtros de período, en días.
-FILTER_WINDOW_DAYS = {
-    'day': 1, 'week': 7, '15days': 15, 'month': 30,
-    '3months': 90, '6months': 180, 'year': 365,
-}
-
-
 def balance_aggregates(prefix=''):
     """Kwargs de agregación del saldo de cada moneda (monto menos comisión).
 
@@ -178,15 +171,6 @@ def currency_totals(queryset, with_count=False):
     if with_count:
         totals['count'] = res['count']
     return totals
-
-
-def apply_period_filter(queryset, filter_val, today=None):
-    """Recorta el queryset a la ventana del filtro de período ('all' no filtra)."""
-    days = FILTER_WINDOW_DAYS.get(filter_val)
-    if not days:
-        return queryset
-    start_date = (today or timezone.localdate()) - timedelta(days=days)
-    return queryset.filter(date__gte=start_date)
 
 
 def project_totals_context(totals, pending_totals):
@@ -286,20 +270,10 @@ def home_organizacion(request):
     )
     has_pending = pending_totals['count'] > 0
 
-    income_filter = request.GET.get('income_filter', 'all')
-    expense_filter = request.GET.get('expense_filter', 'all')
-
-    def get_filtered_totals(filter_val, status=None):
-        transactions = Transaction.objects.filter(organization_id=org_id)
-        if status:
-            transactions = transactions.filter(status=status)
-        transactions = apply_period_filter(transactions, filter_val)
-        return currency_totals(transactions, with_count=True)
-
-    inc_totals = get_filtered_totals(income_filter)
-    exp_totals = get_filtered_totals(expense_filter)
-    inc_pending_totals = get_filtered_totals(income_filter, status='pendiente')
-    exp_pending_totals = get_filtered_totals(expense_filter, status='pendiente')
+    # Ingresos y gastos: sobre todo el histórico (el dashboard ya no filtra por período).
+    all_qs = Transaction.objects.filter(organization_id=org_id)
+    totals_all = currency_totals(all_qs, with_count=True)
+    totals_pending = currency_totals(all_qs.filter(status='pendiente'), with_count=True)
 
 
     try:
@@ -327,46 +301,34 @@ def home_organizacion(request):
         'balance_bs': totals['balance_bs'] or 0,
         'balance_real_usd': totals['balance_real_usd'] or 0,
         'balance_eur': totals['balance_eur'] or 0,
-        'income_usd': inc_totals['income_usd'],
-        'income_bs': inc_totals['income_bs'],
-        'income_real_usd': inc_totals['income_real_usd'],
-        'income_eur': inc_totals['income_eur'],
-        'expense_usd': exp_totals['expense_usd'],
-        'expense_bs': exp_totals['expense_bs'],
-        'expense_real_usd': exp_totals['expense_real_usd'],
-        'expense_eur': exp_totals['expense_eur'],
+        'income_usd': totals_all['income_usd'],
+        'income_bs': totals_all['income_bs'],
+        'income_real_usd': totals_all['income_real_usd'],
+        'income_eur': totals_all['income_eur'],
+        'expense_usd': totals_all['expense_usd'],
+        'expense_bs': totals_all['expense_bs'],
+        'expense_real_usd': totals_all['expense_real_usd'],
+        'expense_eur': totals_all['expense_eur'],
         'has_pending': has_pending,
         'pending_balance_usd': pending_totals['balance_usd'] or 0,
         'pending_balance_bs': pending_totals['balance_bs'] or 0,
         'pending_balance_real_usd': pending_totals['balance_real_usd'] or 0,
         'pending_balance_eur': pending_totals['balance_eur'] or 0,
-        'pending_income_usd': inc_pending_totals['income_usd'],
-        'pending_income_bs': inc_pending_totals['income_bs'],
-        'pending_income_real_usd': inc_pending_totals['income_real_usd'],
-        'pending_income_eur': inc_pending_totals['income_eur'],
-        'pending_income_count': inc_pending_totals.get('count', 0),
-        'pending_expense_usd': exp_pending_totals['expense_usd'],
-        'pending_expense_bs': exp_pending_totals['expense_bs'],
-        'pending_expense_real_usd': exp_pending_totals['expense_real_usd'],
-        'pending_expense_eur': exp_pending_totals['expense_eur'],
-        'pending_expense_count': exp_pending_totals.get('count', 0),
-        'income_filter': income_filter,
-        'expense_filter': expense_filter,
+        'pending_income_usd': totals_pending['income_usd'],
+        'pending_income_bs': totals_pending['income_bs'],
+        'pending_income_real_usd': totals_pending['income_real_usd'],
+        'pending_income_eur': totals_pending['income_eur'],
+        'pending_income_count': totals_pending.get('count', 0),
+        'pending_expense_usd': totals_pending['expense_usd'],
+        'pending_expense_bs': totals_pending['expense_bs'],
+        'pending_expense_real_usd': totals_pending['expense_real_usd'],
+        'pending_expense_eur': totals_pending['expense_eur'],
+        'pending_expense_count': totals_pending.get('count', 0),
         'rates': rates,
         'recent_transactions': recent_transactions,
         'chart_data': chart_data,
         'sort': sort,
         'now_ve': timezone.now(),
-        'filter_options': [
-            ('day', 'Último día'),
-            ('week', 'Última semana'),
-            ('15days', 'Últimos 15 días'),
-            ('month', 'Último mes'),
-            ('3months', 'Últimos 3 meses'),
-            ('6months', 'Últimos 6 meses'),
-            ('year', 'Último año'),
-            ('all', 'Desde el principio'),
-        ]
     }
     context.update(currency_flags(organization_currencies(org_id)))
     return render(request, 'organizations/home.html', context)
@@ -1441,11 +1403,6 @@ def lista_cuentas(request):
         {
             'id': acc.id,
             'currency': acc.currency,
-            'bank_code': acc.bank_code,
-            'bank_name': acc.bank_name,
-            'rif': acc.rif,
-            'account_number': acc.account_number,
-            'holder': acc.holder,
             'name': acc.name,
         }
         for acc in accounts
@@ -1514,8 +1471,7 @@ def guardar_cuenta(request, acc_id=None):
                 org_id=org.id,
                 account_id=account.id,
                 currency=account.currency,
-                bank_code=account.bank_code,
-                bank_name=account.bank_name,
+                name=account.name,
                 is_update=bool(instance),
             )
             messages.success(request, "Cuenta guardada correctamente.")

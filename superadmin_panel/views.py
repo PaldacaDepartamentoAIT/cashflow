@@ -17,9 +17,7 @@ from BCV.services.bcv_scrapper import get_rate_for_date
 from CashFlow.debug import first_form_error
 from accounts.models import Profile
 from organizations.amounts import create_initial_balance_transaction
-from organizations.banks import build_account_display_name, validate_bank_for_currency
 from organizations.models import Account, Organization, OrganizationAccess, Transaction, TransactionAuditLog
-from organizations.validators import validate_account_number, validate_holder, validate_rif
 
 from .decorators import superadmin_required
 from .forms import (
@@ -113,12 +111,12 @@ def _resolve_account_amounts(usd_raw, bs_raw, rate):
 
 
 def _parse_wizard_accounts(post_data):
+    """Lee las cuentas del asistente: solo nombre, moneda y saldo inicial.
+
+    Una cuenta agrupa transacciones de un mismo tipo; no guarda datos bancarios.
+    """
     currencies = post_data.getlist('account_currency')
-    bank_codes = post_data.getlist('account_bank_code')
-    bank_names = post_data.getlist('account_bank_name')
-    rifs = post_data.getlist('account_rif')
-    numbers = post_data.getlist('account_number')
-    holders = post_data.getlist('account_holder')
+    names = post_data.getlist('account_name')
     balances = post_data.getlist('account_balance')
     accounts = []
     errors = []
@@ -128,51 +126,38 @@ def _parse_wizard_accounts(post_data):
         errors.append('Agregue al menos una cuenta en bolívares, dólares o euros.')
         return accounts, errors
 
+    valid_currencies = {code for code, _ in Account.CURRENCY_CHOICES}
+
     for index in range(total):
         currency = (currencies[index] if index < len(currencies) else '').upper()
-        bank_code = bank_codes[index] if index < len(bank_codes) else ''
-        bank_name = bank_names[index] if index < len(bank_names) else ''
-        rif_raw = rifs[index] if index < len(rifs) else ''
-        number_raw = numbers[index] if index < len(numbers) else ''
-        holder_raw = holders[index] if index < len(holders) else ''
+        name = (names[index] if index < len(names) else '').strip()
         balance_raw = balances[index] if index < len(balances) else ''
 
-        if not bank_code and not bank_name and not rif_raw and not number_raw and not holder_raw:
+        # Fila vacía: el asistente siempre envía una por moneda.
+        if not name:
             continue
 
-        try:
-            bank_code, bank_name = validate_bank_for_currency(currency, bank_code, bank_name)
-            rif = validate_rif(rif_raw)
-            account_number = validate_account_number(number_raw)
-            holder = validate_holder(holder_raw)
-        except ValidationError as exc:
-            label = currency or 'cuenta'
-            errors.append(f'{label} #{index + 1}: {exc.messages[0]}')
+        if currency not in valid_currencies:
+            errors.append(f'Cuenta #{index + 1}: moneda no válida.')
             continue
 
         balance = _parse_decimal(balance_raw)
         if balance is None:
-            errors.append(f'Cuenta {bank_name}: saldo inicial inválido.')
+            errors.append(f'Cuenta {name}: saldo inicial inválido.')
             continue
         if balance < 0:
-            errors.append(f'Cuenta {bank_name}: el saldo inicial no puede ser negativo.')
+            errors.append(f'Cuenta {name}: el saldo inicial no puede ser negativo.')
             continue
 
         accounts.append({
             'currency': currency,
-            'bank_code': bank_code,
-            'bank_name': bank_name,
-            'rif': rif,
-            'account_number': account_number,
-            'holder': holder,
+            'name': name,
             'balance': balance,
-            'name': build_account_display_name(bank_name, account_number, currency),
         })
 
     if not accounts and not errors:
         errors.append('Agregue al menos una cuenta válida.')
     return accounts, errors
-
 
 @superadmin_required
 def organizaciones(request):
@@ -330,11 +315,6 @@ def crear_organizacion_wizard(request):
             account = Account.objects.create(
                 organization=org,
                 currency=account_data['currency'],
-                bank_code=account_data['bank_code'],
-                bank_name=account_data['bank_name'],
-                rif=account_data['rif'],
-                account_number=account_data['account_number'],
-                holder=account_data['holder'],
                 name=account_data['name'],
             )
             create_initial_balance_transaction(

@@ -135,7 +135,7 @@
                         </div>
                         <h6 class="sa-wizard-panel__title">Cuentas bancarias</h6>
                         <p class="sa-wizard-panel__desc">
-                            Las cuentas en Bs., USD y EUR son independientes. Complete banco, RIF, número de cuenta, titular y saldo inicial.
+                            Las cuentas en Bs., USD y EUR son independientes. Indique un nombre y, si aplica, el saldo inicial.
                         </p>
 
                         <div class="sa-wizard-user-tabs sa-wizard-account-tabs" role="tablist">
@@ -352,7 +352,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/organizations/banks.js' %}"></script>
 <script src="{% static 'js/superadmin_panel/superadmin.js' %}"></script>
 <script>
     initSuperadminOrgs({
@@ -361,8 +360,6 @@
         accesosUrlTemplate: "/superadmin/organizaciones/{id}/accesos/",
         eliminarUrlTemplate: "/superadmin/organizaciones/eliminar/{id}/",
         bcvRate: "{{ bcv_rate|intcomma_rate }}",
-        bancosBsUrl: "{% static 'json/bancos.json' %}",
-        bancosUsdUrl: "{% static 'json/bancos_usd.json' %}",
     });
 </script>
 {% endblock %}

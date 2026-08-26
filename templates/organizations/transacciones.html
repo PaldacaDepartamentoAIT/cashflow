@@ -62,138 +62,7 @@
 </div>
 
 <div id="kpi-container">
-<div class="cf-grid cf-grid--kpi cf-mb-4">
-    <div class="cf-card cf-card--primary">
-        <div class="cf-card__body cf-p-5">
-            <div class="cf-flex cf-items-center cf-justify-between cf-w-full cf-mb-3">
-                <div class="cf-flex cf-items-center cf-gap-2">
-                    <i class="fa-solid fa-building-columns cf-icon"></i>
-                    <h5 class="cf-mb-0" style="opacity: 0.85; font-weight: 600; font-size: 0.9rem;">BALANCE FILTRADO</h5>
-                </div>
-            </div>
-
-            {# Todas las monedas a la vez; cada bloque aparece solo si la organización tiene cuentas en esa moneda. #}
-            {% if has_bs %}
-                <div class="currency-usd-content">
-                    <div class="cf-stat-value cf-text-white cf-fw-bold">${{ totals.balance_usd|intcomma }}</div>
-                    <div style="opacity: 0.85;" class="cf-fs-sm">{{ totals.balance_bs|intcomma }} Bs.</div>
-                    {% if has_pending %}
-                    <small style="display:block; opacity: 0.75; font-size: 0.7rem; margin-top: 2px;">Pendiente: ${{ totals.pending_balance_usd|intcomma }}</small>
-                    {% endif %}
-                </div>
-                <div class="currency-bs-content cf-hidden">
-                    <div class="cf-stat-value cf-text-white cf-fw-bold">Bs. {{ totals.balance_bs|intcomma }}</div>
-                    <div style="opacity: 0.85;" class="cf-fs-sm">${{ totals.balance_usd|intcomma }}</div>
-                    {% if has_pending %}
-                    <small style="display:block; opacity: 0.75; font-size: 0.7rem; margin-top: 2px;">Pendiente: Bs. {{ totals.pending_balance_bs|intcomma }}</small>
-                    {% endif %}
-                </div>
-                <div class="cf-fs-sm" style="opacity: 0.7;">BCV</div>
-            {% endif %}
-            {% if has_usd %}
-                <div class="cf-stat-value cf-text-white cf-fw-bold">${{ totals.balance_real_usd|intcomma }}</div>
-                <div class="cf-fs-sm" style="opacity: 0.7;">Dólares</div>
-                {% if has_pending %}
-                <small style="display:block; opacity: 0.75; font-size: 0.7rem; margin-top: 2px;">Pendiente: ${{ totals.pending_balance_real_usd|intcomma }}</small>
-                {% endif %}
-            {% endif %}
-            {% if has_eur %}
-                <div class="cf-stat-value cf-text-white cf-fw-bold">€{{ totals.balance_eur|intcomma }}</div>
-                <div class="cf-fs-sm" style="opacity: 0.7;">Euros</div>
-                {% if has_pending %}
-                <small style="display:block; opacity: 0.75; font-size: 0.7rem; margin-top: 2px;">Pendiente: €{{ totals.pending_balance_eur|intcomma }}</small>
-                {% endif %}
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="cf-card">
-        <div class="cf-card__body cf-p-5">
-            <div class="cf-flex cf-justify-between cf-items-start cf-mb-2">
-                <div>
-                    <h5 class="cf-text-muted cf-mb-1">Ingresos</h5>
-                    {% if has_bs %}
-                        <div class="currency-usd-content">
-                            <div class="cf-stat-value cf-text-success">${{ totals.income_usd|intcomma }}</div>
-                            <div class="cf-fw-medium cf-fs-sm" style="opacity: 0.75;">{{ totals.income_bs|intcomma }} Bs.</div>
-                            {% if totals.pending_income_usd or totals.pending_income_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: ${{ totals.pending_income_usd|intcomma }}</small>
-                            {% endif %}
-                        </div>
-                        <div class="currency-bs-content cf-hidden">
-                            <div class="cf-stat-value cf-text-success">Bs. {{ totals.income_bs|intcomma }}</div>
-                            <div class="cf-fw-medium cf-fs-sm" style="opacity: 0.75;">${{ totals.income_usd|intcomma }}</div>
-                            {% if totals.pending_income_usd or totals.pending_income_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: Bs. {{ totals.pending_income_bs|intcomma }}</small>
-                            {% endif %}
-                        </div>
-                        <div class="cf-text-muted cf-fs-sm">BCV</div>
-                    {% endif %}
-                    {% if has_usd %}
-                        <div class="cf-stat-value cf-text-success">${{ totals.income_real_usd|intcomma }}</div>
-                        <div class="cf-text-muted cf-fs-sm">Dólares</div>
-                        {% if totals.pending_income_real_usd %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: ${{ totals.pending_income_real_usd|intcomma }}</small>
-                        {% endif %}
-                    {% endif %}
-                    {% if has_eur %}
-                        <div class="cf-stat-value cf-text-success">€{{ totals.income_eur|intcomma }}</div>
-                        <div class="cf-text-muted cf-fs-sm">Euros</div>
-                        {% if totals.pending_income_eur %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: €{{ totals.pending_income_eur|intcomma }}</small>
-                        {% endif %}
-                    {% endif %}
-                </div>
-                <div class="cf-icon-box cf-icon-box--success">
-                    <i class="fa-solid fa-arrow-trend-up"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="cf-card">
-        <div class="cf-card__body cf-p-5">
-            <div class="cf-flex cf-justify-between cf-items-start cf-mb-2">
-                <div>
-                    <h5 class="cf-text-muted cf-mb-1">Gastos</h5>
-                    {% if has_bs %}
-                        <div class="currency-usd-content">
-                            <div class="cf-stat-value cf-text-danger">${{ totals.expense_usd|intcomma }}</div>
-                            <div class="cf-fw-medium cf-fs-sm" style="opacity: 0.75;">{{ totals.expense_bs|intcomma }} Bs.</div>
-                            {% if totals.pending_expense_usd or totals.pending_expense_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: ${{ totals.pending_expense_usd|intcomma }}</small>
-                            {% endif %}
-                        </div>
-                        <div class="currency-bs-content cf-hidden">
-                            <div class="cf-stat-value cf-text-danger">Bs. {{ totals.expense_bs|intcomma }}</div>
-                            <div class="cf-fw-medium cf-fs-sm" style="opacity: 0.75;">${{ totals.expense_usd|intcomma }}</div>
-                            {% if totals.pending_expense_usd or totals.pending_expense_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: Bs. {{ totals.pending_expense_bs|intcomma }}</small>
-                            {% endif %}
-                        </div>
-                        <div class="cf-text-muted cf-fs-sm">BCV</div>
-                    {% endif %}
-                    {% if has_usd %}
-                        <div class="cf-stat-value cf-text-danger">${{ totals.expense_real_usd|intcomma }}</div>
-                        <div class="cf-text-muted cf-fs-sm">Dólares</div>
-                        {% if totals.pending_expense_real_usd %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: ${{ totals.pending_expense_real_usd|intcomma }}</small>
-                        {% endif %}
-                    {% endif %}
-                    {% if has_eur %}
-                        <div class="cf-stat-value cf-text-danger">€{{ totals.expense_eur|intcomma }}</div>
-                        <div class="cf-text-muted cf-fs-sm">Euros</div>
-                        {% if totals.pending_expense_eur %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.75rem;">Pendiente: €{{ totals.pending_expense_eur|intcomma }}</small>
-                        {% endif %}
-                    {% endif %}
-                </div>
-                <div class="cf-icon-box cf-icon-box--danger">
-                    <i class="fa-solid fa-arrow-trend-down"></i>
-                </div>
-            </div>
-        </div>
-    </div>
+{% include 'organizations/partials/kpi_balances.html' %}
 </div>
 </div>
 
@@ -334,7 +203,7 @@
                         </th>
 
                         <th class="col-desc cf-hide-phone">Descripción</th>
-                        <th class="col-amount">Monto (USD)</th>
+                        <th class="col-amount">Monto</th>
                         <th class="col-amount cf-only-lg-up">Monto (BS)</th>
                         <th class="col-rate cf-only-xl-up">Tasa</th>
                         <th class="col-category cf-only-md-up">Categoría</th>
@@ -511,6 +380,8 @@
                     <div class="cf-form-group" style="grid-column: 1 / -1;"><label class="cf-label">Descripción</label>{{ form.description }}</div>
                     <div class="cf-form-group" style="grid-column: 1 / -1;"><label class="cf-label">Notas</label>{{ form.notes }}</div>
 
+                    {# Comisión bancaria oculta en la interfaz; los campos siguen en el DOM para no perder las ya registradas al editar. #}
+                    <div class="cf-hidden" aria-hidden="true" style="display: none;">
                     <!-- Comisión Bancaria -->
                     <div class="cf-form-group" style="grid-column: 1 / -1;">
                         <div class="cf-flex cf-items-center cf-gap-2">
@@ -550,6 +421,7 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
                     </div>
 
                     <div class="cf-form-group cf-mb-0" id="valuationContainer" style="grid-column: 1 / -1; display: none;">

@@ -15,119 +15,7 @@
 </div>
 
 <div id="kpi-container">
-<div class="cf-grid cf-grid--kpi cf-mb-4">
-    <div class="cf-card" id="projectSummaryCol">
-        <div class="cf-card__body cf-p-5">
-            <div class="cf-flex cf-items-center cf-justify-between cf-w-full cf-mb-4">
-                <div class="cf-flex cf-items-center cf-gap-2">
-                    <i class="fa-solid fa-chart-pie cf-icon cf-text-primary"></i>
-                    <h5 class="cf-mb-0" style="font-weight: 600; font-size: 0.95rem;">RESUMEN FINANCIERO</h5>
-                </div>
-            </div>
-
-            <div class="project-detail-kpi">
-                <div>
-                    <span class="cf-stat-label">Balance Proyecto (Total)</span>
-                    {% if has_bs %}
-                        <div class="currency-usd-content">
-                            <div class="cf-stat-value {% if totals.balance_usd < 0 %}cf-text-danger{% else %}cf-text-success{% endif %}">{{ totals.balance_usd|intcomma }} $</div>
-                            <div class="cf-text-muted cf-fs-sm">{{ totals.balance_bs|intcomma }} Bs. · BCV</div>
-                            {% if has_pending %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_balance_usd|intcomma }} $</small>
-                            {% endif %}
-                        </div>
-                        <div class="currency-bs-content cf-hidden">
-                            <div class="cf-stat-value {% if totals.balance_bs < 0 %}cf-text-danger{% else %}cf-text-success{% endif %}">{{ totals.balance_bs|intcomma }} Bs.</div>
-                            <div class="cf-text-muted cf-fs-sm">{{ totals.balance_usd|intcomma }} $ · BCV</div>
-                            {% if has_pending %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_balance_bs|intcomma }} Bs.</small>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                    {% if has_usd %}
-                        <div class="cf-stat-value {% if totals.balance_real_usd < 0 %}cf-text-danger{% else %}cf-text-success{% endif %}">{{ totals.balance_real_usd|intcomma }} $</div>
-                        <div class="cf-text-muted cf-fs-sm">Dólares</div>
-                        {% if has_pending %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_balance_real_usd|intcomma }} $</small>
-                        {% endif %}
-                    {% endif %}
-                    {% if has_eur %}
-                        <div class="cf-stat-value {% if totals.balance_eur < 0 %}cf-text-danger{% else %}cf-text-success{% endif %}">{{ totals.balance_eur|intcomma }} €</div>
-                        <div class="cf-text-muted cf-fs-sm">Euros</div>
-                        {% if has_pending %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_balance_eur|intcomma }} €</small>
-                        {% endif %}
-                    {% endif %}
-                </div>
-                <div>
-                    <span class="cf-stat-label">Ingresos Totales</span>
-                    {% if has_bs %}
-                        <div class="currency-usd-content">
-                            <div class="cf-stat-value cf-text-success">{{ totals.income_usd|intcomma }} $</div>
-                            <div class="cf-text-muted cf-fs-sm">{{ totals.income_bs|intcomma }} Bs. · BCV</div>
-                            {% if totals.pending_income_usd or totals.pending_income_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_income_usd|intcomma }} $</small>
-                            {% endif %}
-                        </div>
-                        <div class="currency-bs-content cf-hidden">
-                            <div class="cf-stat-value cf-text-success">{{ totals.income_bs|intcomma }} Bs.</div>
-                            <div class="cf-text-muted cf-fs-sm">{{ totals.income_usd|intcomma }} $ · BCV</div>
-                            {% if totals.pending_income_usd or totals.pending_income_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_income_bs|intcomma }} Bs.</small>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                    {% if has_usd %}
-                        <div class="cf-stat-value cf-text-success">{{ totals.income_real_usd|intcomma }} $</div>
-                        <div class="cf-text-muted cf-fs-sm">Dólares</div>
-                        {% if totals.pending_income_real_usd %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_income_real_usd|intcomma }} $</small>
-                        {% endif %}
-                    {% endif %}
-                    {% if has_eur %}
-                        <div class="cf-stat-value cf-text-success">{{ totals.income_eur|intcomma }} €</div>
-                        <div class="cf-text-muted cf-fs-sm">Euros</div>
-                        {% if totals.pending_income_eur %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_income_eur|intcomma }} €</small>
-                        {% endif %}
-                    {% endif %}
-                </div>
-                <div>
-                    <span class="cf-stat-label">Gastos Totales</span>
-                    {% if has_bs %}
-                        <div class="currency-usd-content">
-                            <div class="cf-stat-value cf-text-danger">{{ totals.expense_usd|intcomma }} $</div>
-                            <div class="cf-text-muted cf-fs-sm">{{ totals.expense_bs|intcomma }} Bs. · BCV</div>
-                            {% if totals.pending_expense_usd or totals.pending_expense_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_expense_usd|intcomma }} $</small>
-                            {% endif %}
-                        </div>
-                        <div class="currency-bs-content cf-hidden">
-                            <div class="cf-stat-value cf-text-danger">{{ totals.expense_bs|intcomma }} Bs.</div>
-                            <div class="cf-text-muted cf-fs-sm">{{ totals.expense_usd|intcomma }} $ · BCV</div>
-                            {% if totals.pending_expense_usd or totals.pending_expense_bs %}
-                            <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_expense_bs|intcomma }} Bs.</small>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                    {% if has_usd %}
-                        <div class="cf-stat-value cf-text-danger">{{ totals.expense_real_usd|intcomma }} $</div>
-                        <div class="cf-text-muted cf-fs-sm">Dólares</div>
-                        {% if totals.pending_expense_real_usd %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_expense_real_usd|intcomma }} $</small>
-                        {% endif %}
-                    {% endif %}
-                    {% if has_eur %}
-                        <div class="cf-stat-value cf-text-danger">{{ totals.expense_eur|intcomma }} €</div>
-                        <div class="cf-text-muted cf-fs-sm">Euros</div>
-                        {% if totals.pending_expense_eur %}
-                        <small class="cf-text-muted" style="display:block; font-size: 0.7rem;">Pendiente: {{ totals.pending_expense_eur|intcomma }} €</small>
-                        {% endif %}
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
+{% include 'organizations/partials/kpi_balances.html' with kpi_title='BALANCE DEL PROYECTO' kpi_icon='fa-chart-pie' %}
 </div>
 </div>
 
@@ -294,7 +182,7 @@
                             </a>
                         </th>
                     <th class="col-desc cf-hide-phone">Descripción</th>
-                    <th class="col-amount">Monto (USD)</th>
+                    <th class="col-amount">Monto</th>
                     <th class="col-amount cf-only-lg-up">Monto (BS)</th>
                     <th class="col-rate cf-only-xl-up">Tasa</th>
                     <th class="col-category cf-only-md-up">Categoría</th>

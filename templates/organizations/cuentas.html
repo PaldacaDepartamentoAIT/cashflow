@@ -35,18 +35,12 @@
                         {% if acc.currency == 'USD' %}Cuenta en Dólares{% elif acc.currency == 'EUR' %}Cuenta en Euros{% else %}Cuenta en Bolívares{% endif %}
                     </span>
                     <h5 class="cf-card__title">{{ acc.name }}</h5>
-                    <p class="cf-text-muted cf-fs-sm cf-mb-0">{{ acc.bank_name }}</p>
                 </div>
                 {% if not user_is_viewer %}
                 <button class="cf-btn cf-btn--sm cf-btn--outline-secondary cf-z-3" onclick="event.preventDefault(); editAccount({{ acc.id }})">
                     <i class="fa-solid fa-pencil"></i>
                 </button>
                 {% endif %}
-                </div>
-                <div class="account-meta cf-text-muted cf-fs-sm cf-mb-3">
-                <div><strong>RIF:</strong> {{ acc.rif }}</div>
-                <div><strong>Número:</strong> {{ acc.account_number }}</div>
-                <div><strong>Titular:</strong> {{ acc.holder }}</div>
                 </div>
                 <div class="cf-divider cf-my-3"></div>
                 <div class="account-balance">
@@ -95,28 +89,8 @@
                     {{ form.currency }}
                 </div>
                 <div class="cf-form-group">
-                    <label class="cf-label">Banco</label>
-                    <select id="id_bank_select" class="cf-select" data-banks-url="" required></select>
-                    {{ form.bank_code }}
-                    {{ form.bank_name }}
-                </div>
-                <div class="cf-grid cf-grid--2">
-                    <div class="cf-form-group">
-                        <label class="cf-label">RIF</label>
-                        {{ form.rif }}
-                    </div>
-                    <div class="cf-form-group">
-                        <label class="cf-label">Número de cuenta</label>
-                        {{ form.account_number }}
-                    </div>
-                    <div class="cf-form-group">
-                        <label class="cf-label">Titular</label>
-                        {{ form.holder }}
-                    </div>
-                    <div class="cf-form-group">
-                        <label class="cf-label">Nombre de la cuenta</label>
-                        {{ form.name }}
-                    </div>
+                    <label class="cf-label">Nombre de la cuenta</label>
+                    {{ form.name }}
                 </div>
                 <div id="initialAmountFields">
                     <div class="cf-divider"></div>
@@ -171,14 +145,11 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/organizations/banks.js' %}"></script>
 <script src="{% static 'js/organizations/cuentas.js' %}"></script>
 <script>
     initCuentas({
         crearUrl: "{% url 'crear_cuenta' %}",
         bcvRate: parseFloat("{{ bcv_rate|unlocalize }}") || 1,
-        bancosBsUrl: "{% static 'json/bancos.json' %}",
-        bancosUsdUrl: "{% static 'json/bancos_usd.json' %}",
     });
 </script>
 {% endblock %}
