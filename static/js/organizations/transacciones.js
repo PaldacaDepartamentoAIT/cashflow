@@ -644,6 +644,13 @@ function initTransacciones(config) {
                 // Actualizar clases activas localmente
                 this.parentElement.querySelectorAll('.cf-tab').forEach(t => t.classList.remove('is-active'));
                 this.classList.add('is-active');
+                // Mantener sincronizado el input oculto view_mode del form de filtros,
+                // para que cualquier envío del formulario (incl. el listener genérico de base.js) lo respete.
+                const urlParams = new URLSearchParams(url.split('?')[1]);
+                const viewModeInput = document.querySelector('.cf-filter-form input[name="view_mode"]');
+                if (viewModeInput && urlParams.has('view_mode')) {
+                    viewModeInput.value = urlParams.get('view_mode');
+                }
                 updateDashboard();
             });
         });

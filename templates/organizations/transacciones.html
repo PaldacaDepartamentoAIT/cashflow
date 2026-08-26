@@ -163,6 +163,7 @@
 
 <div class="cf-filter-bar">
     <form method="get" class="cf-filter-form">
+        <input type="hidden" name="view_mode" value="{{ view_mode }}">
         <!-- 1. Búsqueda -->
         <div class="cf-form-group cf-form-group--search">
             <label class="cf-stat-label">Buscar:</label>
@@ -181,6 +182,13 @@
                     <i class="fa-solid fa-chevron-down cf-fs-xs cf-text-muted"></i>
                 </button>
                 <div class="cf-dropdown__menu cf-dropdown-multiselect__menu">
+                    <div class="cf-dropdown-multiselect__search">
+                        <input type="text" class="cf-input cf-input--sm" placeholder="Buscar categoría..." autocomplete="off">
+                    </div>
+                    <label class="cf-dropdown-multiselect__item cf-dropdown-multiselect__select-all">
+                        <input type="checkbox" class="cf-checkbox cf-dropdown-multiselect__select-all-checkbox">
+                        <span class="cf-fw-medium">Seleccionar todas</span>
+                    </label>
                     {% for cat in categories %}
                     <label class="cf-dropdown-multiselect__item">
                         <input type="checkbox" name="category" value="{{ cat.id }}" class="dynamic-search cf-checkbox" {% if cat.id|stringformat:"i" in selected_categories %}checked{% endif %}>

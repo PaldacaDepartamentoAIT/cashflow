@@ -2,9 +2,73 @@
  * CashFlow Dropdown — reemplazo de bootstrap dropdown
  */
 (function () {
+    function resetMultiselectSearch(dropdownEl) {
+        const searchInput = dropdownEl.querySelector('.cf-dropdown-multiselect__search input');
+        if (searchInput && searchInput.value) {
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input'));
+        }
+    }
+
     function closeAll(except) {
         document.querySelectorAll('.cf-dropdown.is-open').forEach(function (el) {
-            if (el !== except) el.classList.remove('is-open');
+            if (el !== except) {
+                el.classList.remove('is-open');
+                resetMultiselectSearch(el);
+            }
+        });
+    }
+
+    // Filtra las opciones de un menú cf-dropdown-multiselect según lo escrito en su buscador.
+    function attachMultiselectSearch(menuEl) {
+        const searchInput = menuEl.querySelector('.cf-dropdown-multiselect__search input');
+        if (!searchInput) return;
+        searchInput.addEventListener('click', function (e) { e.stopPropagation(); });
+        searchInput.addEventListener('input', function () {
+            const term = searchInput.value.trim().toLowerCase();
+            menuEl.querySelectorAll('.cf-dropdown-multiselect__item:not(.cf-dropdown-multiselect__select-all)').forEach(function (item) {
+                const text = item.textContent.trim().toLowerCase();
+                item.classList.toggle('cf-hidden', term !== '' && !text.includes(term));
+            });
+        });
+    }
+
+    // Checkbox "Seleccionar todas": solo se activa si el menú incluye ese control (filtros de transacciones).
+    function attachSelectAll(menuEl) {
+        const selectAll = menuEl.querySelector('.cf-dropdown-multiselect__select-all-checkbox');
+        if (!selectAll || selectAll._cfBound) return;
+        selectAll._cfBound = true;
+
+        function itemCheckboxes() {
+            return Array.from(menuEl.querySelectorAll('.cf-dropdown-multiselect__item:not(.cf-dropdown-multiselect__select-all) input[type="checkbox"]'));
+        }
+
+        function syncState() {
+            const boxes = itemCheckboxes();
+            const checkedCount = boxes.filter(function (cb) { return cb.checked; }).length;
+            selectAll.checked = boxes.length > 0 && checkedCount === boxes.length;
+            selectAll.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
+        }
+
+        itemCheckboxes().forEach(function (cb) { cb.addEventListener('change', syncState); });
+        syncState();
+
+        selectAll.addEventListener('change', function () {
+            const shouldCheck = selectAll.checked;
+            selectAll.indeterminate = false;
+            let lastChanged = null;
+            itemCheckboxes().forEach(function (cb) {
+                if (cb.checked !== shouldCheck) {
+                    cb.checked = shouldCheck;
+                    lastChanged = cb;
+                }
+            });
+            // Un solo evento sintético (en la última casilla tocada) basta para disparar
+            // los listeners existentes, que ya leen el formulario completo.
+            if (lastChanged) {
+                lastChanged.dispatchEvent(new Event('input', { bubbles: true }));
+                lastChanged.dispatchEvent(new Event('change', { bubbles: true }));
+            }
         });
     }
 
@@ -18,7 +82,11 @@
                 if (dropdown) {
                     const isOpen = dropdown.classList.contains('is-open');
                     closeAll();
-                    if (!isOpen) dropdown.classList.add('is-open');
+                    if (!isOpen) {
+                        dropdown.classList.add('is-open');
+                        const searchInput = dropdown.querySelector('.cf-dropdown-multiselect__search input');
+                        if (searchInput) setTimeout(function () { searchInput.focus(); }, 0);
+                    }
                 }
                 return;
             }
@@ -31,6 +99,12 @@
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') closeAll();
         });
+
+        // Dropdowns de filtro (renderizados por el servidor): buscador + "seleccionar todas".
+        document.querySelectorAll('#categoryFilterDropdown .cf-dropdown-multiselect__menu').forEach(function (menuEl) {
+            attachMultiselectSearch(menuEl);
+            attachSelectAll(menuEl);
+        });
     }
 
     if (document.readyState === 'loading') {
@@ -38,6 +112,8 @@
     } else {
         init();
     }
+
+    window.attachDropdownMultiselectSearch = attachMultiselectSearch;
 })();
 
 window.initFormCategoriesDropdown = function(selectElement, dropdownEl, initialColorsMap) {
@@ -69,12 +145,23 @@ window.initFormCategoriesDropdown = function(selectElement, dropdownEl, initialC
             colorsMap = newColorsMap;
         }
         menuEl.innerHTML = '';
-        
+
+        const searchWrap = document.createElement('div');
+        searchWrap.className = 'cf-dropdown-multiselect__search';
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'cf-input cf-input--sm';
+        searchInput.placeholder = 'Buscar categoría...';
+        searchInput.autocomplete = 'off';
+        searchWrap.appendChild(searchInput);
+        menuEl.appendChild(searchWrap);
+
         if (selectElement.options.length === 0) {
             const noCats = document.createElement('div');
             noCats.className = 'cf-text-muted cf-fs-sm cf-p-2';
             noCats.textContent = 'Sin categorías disponibles';
             menuEl.appendChild(noCats);
+            window.attachDropdownMultiselectSearch(menuEl);
             updateText();
             return;
         }
@@ -112,6 +199,7 @@ window.initFormCategoriesDropdown = function(selectElement, dropdownEl, initialC
             label.appendChild(badge);
             menuEl.appendChild(label);
         });
+        window.attachDropdownMultiselectSearch(menuEl);
         updateText();
     }
 
