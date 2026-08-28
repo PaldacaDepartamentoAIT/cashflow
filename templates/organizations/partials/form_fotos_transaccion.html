@@ -1,0 +1,21 @@
+{# Bloque de carga de fotos del modal de transacción. Se incluye en transacciones.html, #}
+{# detalle_cuenta.html y detalle_proyecto.html, por lo que NO debe referenciar `form` #}
+{# ni `trans_form`: esos nombres de contexto cambian según la plantilla. #}
+<div class="cf-form-group cf-mb-0 cf-photo-uploader" style="grid-column: 1 / -1;">
+    <label class="cf-label cf-flex cf-justify-between">
+        Fotos (opcional)
+        <span class="cf-fs-xs cf-text-muted cf-photo-uploader__counter" id="fotosCounter">0 / 10</span>
+    </label>
+
+    {% if not user_is_viewer %}
+    <input type="file"
+           name="photos"
+           id="fotosInput"
+           class="cf-input cf-photo-uploader__input"
+           multiple
+           accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif">
+    <span class="cf-fs-xs cf-text-muted">Hasta 10 fotos (JPG, PNG, WEBP o HEIC). Se convierten y comprimen automáticamente al guardar.</span>
+    {% endif %}
+
+    <div class="cf-photo-grid" id="fotosGrid"></div>
+</div>

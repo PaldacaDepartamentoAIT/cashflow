@@ -11,6 +11,7 @@ WORKDIR /app
 # Dependencias de sistema:
 # - default-libmysqlclient-dev/pkg-config/build-essential: compilar mysqlclient
 # - libjpeg62-turbo-dev/zlib1g-dev: Pillow
+#   (HEIC no necesita paquetes apt: el wheel de pillow-heif trae libheif)
 # - curl: healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -27,7 +28,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY . .
 
-RUN mkdir -p /app/logs /app/staticfiles
+RUN mkdir -p /app/logs /app/staticfiles /app/media
 
 # collectstatic no requiere conexión a la BD, solo SECRET_KEY (usa el valor
 # por defecto de settings.py si no se pasa uno en build-time).
@@ -38,4 +39,4 @@ RUN chmod +x /app/docker/entrypoint.sh
 EXPOSE 8090
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
-CMD ["gunicorn", "CashFlow.wsgi:application", "--bind", "0.0.0.0:8090", "--workers", "3", "--timeout", "60"]
+CMD ["gunicorn", "CashFlow.wsgi:application", "--bind", "0.0.0.0:8090", "--workers", "3", "--timeout", "120"]

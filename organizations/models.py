@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -163,6 +165,45 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.date} - {self.description[:50]}"
+
+
+def transaction_photo_path(instance, filename):
+    """Ruta de guardado de una foto: particionada por organización y transacción,
+    con nombre UUID para que no sea adivinable. Siempre .jpg porque procesar_foto()
+    recomprime todo a JPEG."""
+    return (
+        f'transacciones/{instance.transaction.organization_id}/'
+        f'{instance.transaction_id}/{uuid.uuid4().hex}.jpg'
+    )
+
+
+class TransactionPhoto(models.Model):
+    """Foto adjunta a una transacción (comprobante, factura, recibo).
+
+    Los archivos NO se sirven por una URL pública: se entregan mediante la vista
+    autenticada `ver_foto_transaccion`, que valida el alcance por organización.
+    El tope por transacción (settings.TRANSACTION_PHOTOS_MAX) no es expresable
+    como constraint de BD; se valida en TransactionPhotosForm y se re-verifica
+    dentro de la transacción atómica de guardar_transaccion()."""
+
+    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name='photos', verbose_name="Transacción")
+    image = models.ImageField(upload_to=transaction_photo_path, max_length=255, verbose_name="Imagen")
+    original_filename = models.CharField(max_length=255, blank=True, verbose_name="Nombre original")
+    size_bytes = models.PositiveIntegerField(default=0, verbose_name="Tamaño (bytes)")
+    width = models.PositiveIntegerField(default=0, verbose_name="Ancho")
+    height = models.PositiveIntegerField(default=0, verbose_name="Alto")
+    position = models.PositiveSmallIntegerField(default=0, verbose_name="Orden")
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='transaction_photos', verbose_name="Subida por")
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de subida")
+
+    class Meta:
+        verbose_name = "Foto de transacción"
+        verbose_name_plural = "Fotos de transacción"
+        ordering = ['position', 'id']
+        indexes = [models.Index(fields=['transaction', 'position'])]
+
+    def __str__(self):
+        return f"Foto {self.id} de la transacción {self.transaction_id}"
 
 
 class TransactionAuditLog(models.Model):

@@ -877,6 +877,24 @@
     to   { transform: rotate(360deg); }
 }
 
+/* Variante para usar dentro de un botón mientras se envía un formulario. */
+.cf-spinner--btn {
+    width: 0.9em;
+    height: 0.9em;
+    border-width: 2px;
+    border-top-color: currentColor;
+    border-right-color: currentColor;
+    vertical-align: -0.1em;
+    margin-right: 0.45rem;
+}
+
+/* Durante el envío el botón muestra el spinner: mantenerlo legible en vez de
+   atenuarlo como un botón deshabilitado corriente (regla de la línea 21). */
+.is-loading .cf-btn:disabled,
+.is-loading .cf-btn[disabled] {
+    opacity: 0.85;
+}
+
 /* ============================================
    FILTER BAR
    ============================================ */

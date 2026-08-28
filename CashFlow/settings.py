@@ -139,13 +139,41 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # Destino de collectstatic (no debe ser la misma carpeta que STATICFILES_DIRS)
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# Django 5.1 eliminó STATICFILES_STORAGE/DEFAULT_FILE_STORAGE: el almacenamiento
+# se configura ahora en STORAGES (los ajustes viejos no pueden coexistir con él).
 if IS_DEVELOPMENT:
     # Sirve desde static/ sin ejecutar collectstatic en cada cambio
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
     WHITENOISE_USE_FINDERS = True
+    _STATIC_BACKEND = 'whitenoise.storage.CompressedStaticFilesStorage'
 else:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
     WHITENOISE_USE_FINDERS = False
+    _STATIC_BACKEND = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+STORAGES = {
+    # Punto de cambio a S3: DJANGO_DEFAULT_FILE_STORAGE=storages.backends.s3.S3Storage
+    'default': {
+        'BACKEND': os.environ.get(
+            'DJANGO_DEFAULT_FILE_STORAGE',
+            'django.core.files.storage.FileSystemStorage',
+        ),
+    },
+    'staticfiles': {'BACKEND': _STATIC_BACKEND},
+}
+
+# -----------------------------------------------------------------------------
+# Archivos de medios (fotos adjuntas de transacciones)
+# -----------------------------------------------------------------------------
+# En Docker/Coolify DJANGO_MEDIA_ROOT debe apuntar a un volumen persistente
+# (/app/media): si no, las fotos se pierden en cada despliegue.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', BASE_DIR / 'media'))
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
+# Fotos de transacciones: tope por transacción, objetivo de peso por archivo ya
+# comprimido y tamaño máximo aceptado en la subida (antes de recomprimir).
+TRANSACTION_PHOTOS_MAX = int(os.environ.get('TRANSACTION_PHOTOS_MAX', '10'))
+TRANSACTION_PHOTO_TARGET_BYTES = int(os.environ.get('TRANSACTION_PHOTO_TARGET_BYTES', str(40 * 1024)))
+TRANSACTION_PHOTO_MAX_UPLOAD_BYTES = int(os.environ.get('TRANSACTION_PHOTO_MAX_UPLOAD_BYTES', str(15 * 1024 * 1024)))
 
 # -----------------------------------------------------------------------------
 # Auth

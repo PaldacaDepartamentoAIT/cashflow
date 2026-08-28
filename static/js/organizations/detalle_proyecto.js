@@ -60,6 +60,7 @@ function initDetalleProyecto(config) {
         const form = document.getElementById('transactionForm');
         if (!form) return;
         form.reset();
+        if (window.CFFotos) CFFotos.reset();
         form.action = config.crearTransUrl;
         document.getElementById('transactionModalTitle').innerText = 'Nueva Transacción';
 
@@ -137,6 +138,9 @@ function initDetalleProyecto(config) {
         const form = document.getElementById('transactionForm');
         if (!form) return;
         form.action = '/transacciones/guardar/' + id + '/';
+
+        // id === 0 en duplicateTransaction(): cargarExistentes lo ignora.
+        if (window.CFFotos) { CFFotos.reset(); CFFotos.cargarExistentes(id); }
         document.getElementById('transactionModalTitle').innerText = 'Editar Transacción';
 
         const nextFieldEdit = form.querySelector('[name="next"]');
@@ -637,6 +641,11 @@ function initDetalleProyecto(config) {
 
         if (transactionForm) {
             transactionForm.addEventListener('submit', function (e) {
+                if (window.CFFotos) {
+                    const errFotos = CFFotos.validarAntesDeEnviar();
+                    if (errFotos) { e.preventDefault(); alert(errFotos); return; }
+                }
+
                 const orgSel = transactionForm.querySelector('[name="organization"]');
                 const accSel = transactionForm.querySelector('select[name="account"]');
                 const curr = accountCurrency(orgSel ? orgSel.value : null, accSel ? accSel.value : null);

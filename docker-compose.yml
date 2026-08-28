@@ -10,6 +10,9 @@ services:
         condition: service_healthy
     volumes:
       - logs_data:/app/logs
+      # Fotos adjuntas de transacciones. Sin este volumen se pierden en cada
+      # despliegue: Coolify reconstruye la imagen cada vez.
+      - media_data:/app/media
 
   db:
     image: mariadb:11.4
@@ -32,3 +35,4 @@ services:
 volumes:
   mariadb_data:
   logs_data:
+  media_data:

@@ -26,6 +26,15 @@ def serialize_transaction_snapshot(transaction):
         'bank_fee_real_usd': float(transaction.bank_fee_real_usd),
         'amount_eur': float(transaction.amount_eur) if transaction.amount_eur is not None else None,
         'bank_fee_eur': float(transaction.bank_fee_eur),
+        'photos_count': transaction.photos.count(),
+        'photos': [
+            {
+                'id': p.id,
+                'filename': p.original_filename,
+                'uploaded_at': p.uploaded_at.isoformat() if p.uploaded_at else None,
+            }
+            for p in transaction.photos.all()
+        ],
     }
 
 

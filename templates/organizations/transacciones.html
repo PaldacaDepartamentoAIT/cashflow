@@ -300,7 +300,7 @@
             <h5 class="cf-modal__title" id="modalTitle">Nueva Transacción</h5>
             <button type="button" class="cf-modal__close" data-cf-dismiss="modal">&times;</button>
         </div>
-                <form id="transactionForm" method="post" action="{% url 'crear_transaccion' %}">
+                <form id="transactionForm" method="post" enctype="multipart/form-data" data-cf-loading="Guardando transacción…" action="{% url 'crear_transaccion' %}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
             {{ form.organization }}
@@ -379,6 +379,7 @@
                     <div class="cf-form-group"><label class="cf-label">Proyecto</label>{{ form.project }}</div>
                     <div class="cf-form-group" style="grid-column: 1 / -1;"><label class="cf-label">Descripción</label>{{ form.description }}</div>
                     <div class="cf-form-group" style="grid-column: 1 / -1;"><label class="cf-label">Notas</label>{{ form.notes }}</div>
+                    {% include 'organizations/partials/form_fotos_transaccion.html' %}
 
                     {# Comisión bancaria oculta en la interfaz; los campos siguen en el DOM para no perder las ya registradas al editar. #}
                     <div class="cf-hidden" aria-hidden="true" style="display: none;">
@@ -439,6 +440,19 @@
     </div>
 </div>
 
+<div class="cf-modal" id="photoModal" tabindex="-1" aria-hidden="true">
+    <div class="cf-modal__backdrop"></div>
+    <div class="cf-modal__dialog cf-modal__dialog--lg">
+        <div class="cf-modal__header">
+            <h5 class="cf-modal__title">Foto adjunta</h5>
+            <button type="button" class="cf-modal__close" data-cf-dismiss="modal">&times;</button>
+        </div>
+        <div class="cf-modal__body">
+            <img id="photoModalImg" class="cf-photo-full" src="" alt="Foto adjunta de la transacción">
+        </div>
+    </div>
+</div>
+
 <div class="cf-modal" id="detailModal" tabindex="-1" aria-hidden="true">
     <div class="cf-modal__backdrop"></div>
     <div class="cf-modal__dialog">
@@ -490,7 +504,15 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/organizations/fotos_transaccion.js' %}"></script>
 <script src="{% static 'js/organizations/transacciones.js' %}"></script>
+<script>
+    CFFotos.init({
+        maxFotos: 10,
+        listarUrl: function (id) { return '/transacciones/' + id + '/fotos/'; },
+        verUrl: function (id) { return '/transacciones/fotos/' + id + '/'; }
+    });
+</script>
 <script>
     initTransacciones({
         crearUrl: "{% url 'crear_transaccion' %}",

@@ -1,0 +1,17 @@
+{# Galería de solo lectura para el modal de detalle de la transacción. #}
+{% if transaction.photos.all %}
+<div class="cf-form-group cf-mb-0">
+    <span class="cf-stat-label">Fotos</span>
+    <div class="cf-photo-grid cf-photo-grid--readonly">
+        {% for foto in transaction.photos.all %}
+        <div class="cf-photo-grid__item">
+            <img class="cf-photo-grid__img"
+                 src="{% url 'ver_foto_transaccion' foto.id %}"
+                 alt="Foto adjunta de la transacción"
+                 loading="lazy"
+                 data-foto-full="{% url 'ver_foto_transaccion' foto.id %}">
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

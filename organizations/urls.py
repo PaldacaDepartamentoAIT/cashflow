@@ -15,6 +15,9 @@ urlpatterns = [
     path('transacciones/guardar/<int:trans_id>/', views.guardar_transaccion, name='editar_transaccion'),
     path('transacciones/eliminar/<int:trans_id>/', views.eliminar_transaccion, name='eliminar_transaccion'),
     path('transacciones/detalle/<int:trans_id>/', views.detalle_transaccion, name='detalle_transaccion'),
+    path('transacciones/<int:trans_id>/fotos/', views.listar_fotos_transaccion, name='listar_fotos_transaccion'),
+    path('transacciones/fotos/<int:foto_id>/', views.ver_foto_transaccion, name='ver_foto_transaccion'),
+    path('transacciones/fotos/<int:foto_id>/eliminar/', views.eliminar_foto_transaccion, name='eliminar_foto_transaccion'),
     path('transacciones/exportar-pdf/', views.exportar_pdf_transacciones, name='exportar_pdf_transacciones'),
     path('transacciones/exportar-xlsx/', views.exportar_xlsx_transacciones, name='exportar_xlsx_transacciones'),
     

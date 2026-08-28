@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from .models import Transaction, Category, Account, Project, Valuation, Organization, CostCenter
 from .amounts import apply_dual_currency_amounts, zero_foreign_currency_fields
+from .photos import max_fotos, validar_foto
 
 class TransactionForm(forms.ModelForm):
     class Meta:
@@ -188,6 +189,51 @@ class TransactionForm(forms.ModelForm):
             self.fields['valuation'].queryset = Valuation.objects.filter(
                 models.Q(project__organization=organization) | models.Q(project__shared_organizations__organization=organization)
             ).distinct()
+
+class TransactionPhotosForm(forms.Form):
+    """Valida las fotos adjuntas de una transacción: cantidad total, tamaño,
+    extensión, tipo de contenido y que cada archivo sea realmente una imagen.
+
+    Va aparte de TransactionForm a propósito: guardar_transaccion() nunca
+    re-renderiza el formulario (siempre redirige), así que un formset sería peso
+    muerto; y esta validación necesita datos que el ModelForm no tiene (las fotos
+    ya existentes y los ids que se están borrando en el mismo request).
+    """
+
+    def __init__(self, data=None, files=None, *, transaction=None, **kwargs):
+        self.transaction = transaction
+        self.nuevas = files.getlist('photos') if files else []
+        self.ids_a_eliminar = []
+        self._ids_solicitados = data.getlist('delete_photo_ids') if data else []
+        super().__init__(data=data, files=files, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        existentes = self.transaction.photos.count() if self.transaction else 0
+
+        # Solo se pueden marcar para borrar fotos de ESTA transacción: la
+        # intersección se hace antes de contar, así nadie amplía su cupo
+        # enviando ids de otra transacción.
+        if self.transaction and self._ids_solicitados:
+            ids = {int(v) for v in self._ids_solicitados if str(v).isdigit()}
+            self.ids_a_eliminar = list(
+                self.transaction.photos.filter(id__in=ids).values_list('id', flat=True)
+            )
+
+        total = existentes - len(self.ids_a_eliminar) + len(self.nuevas)
+        if total > max_fotos():
+            raise ValidationError(
+                "Solo puede adjuntar hasta %d fotos por transacción: actualmente "
+                "tiene %d, está eliminando %d y agregando %d (total %d). Quite "
+                "algunas fotos antes de guardar."
+                % (max_fotos(), existentes, len(self.ids_a_eliminar), len(self.nuevas), total)
+            )
+
+        for archivo in self.nuevas:
+            validar_foto(archivo)
+
+        return cleaned_data
+
 
 class CategoryForm(forms.ModelForm):
     class Meta:

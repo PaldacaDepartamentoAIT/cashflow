@@ -18,6 +18,17 @@ CashFlow/settings.py y CashFlow/db.py están en .gitignore y .gitattributes (mer
 En dev: git merge main  → conserva la config de dev (si es fast-forward, revisar esos dos archivos).
 En main: git merge dev  → conserva la config de producción en main.
 
+--- Fotos adjuntas de transacciones ---
+Los ajustes MEDIA_ROOT/MEDIA_URL/STORAGES y TRANSACTION_PHOTO_* viven en CashFlow/settings.py,
+que es merge=ours: NO se propagan al hacer merge entre ramas. Hay que replicarlos a mano en
+cada rama que despliegue. Si se olvida, MEDIA_ROOT cae a BASE_DIR/media, que en Docker no es
+un volumen y se borra en cada despliegue.
+
+En Coolify: además del volumen media_data en docker-compose.yml, declararlo en el panel
+"Persistent Storage" del recurso Application (/app/media).
+
+Los archivos NO están en el dump de la base de datos: el respaldo debe cubrir el volumen.
+
 --- Producción (Namecheap / LiteSpeed + Passenger) ---
 Variables de entorno en cPanel o .env del servidor:
   DJANGO_ENV=production

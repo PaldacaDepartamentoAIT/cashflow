@@ -1,0 +1,17 @@
+{# Fotos ya guardadas de una transacción. Lo devuelve listar_fotos_transaccion y lo #}
+{# inyecta el modal de edición mediante CFFotos.cargarExistentes(). #}
+{% for foto in fotos %}
+<div class="cf-photo-grid__item" data-foto-id="{{ foto.id }}">
+    <img class="cf-photo-grid__img"
+         src="{% url 'ver_foto_transaccion' foto.id %}"
+         alt="Foto adjunta de la transacción"
+         loading="lazy"
+         data-foto-full="{% url 'ver_foto_transaccion' foto.id %}">
+    {% if not user_is_viewer %}
+    <button type="button"
+            class="cf-photo-grid__remove"
+            title="Marcar esta foto para eliminar"
+            data-foto-remove="{{ foto.id }}">&times;</button>
+    {% endif %}
+</div>
+{% endfor %}

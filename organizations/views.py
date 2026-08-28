@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse, Http404
 from django.contrib.auth.decorators import login_required
-from django.db import models
+from django.db import models, transaction as db_transaction
 from django.db.models import Sum, OuterRef, Subquery, Value, F, Q, Count
 from django.db.models.functions import Coalesce, TruncMonth
 from django.utils import timezone
@@ -9,17 +9,19 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core import signing
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 from datetime import timedelta
 import json
 from decimal import Decimal
 
-from .models import Organization, OrganizationAccess, Transaction, TransactionAuditLog, Category, Account, Project, Valuation, CostCenter, ProjectShareLink
+from .models import Organization, OrganizationAccess, Transaction, TransactionAuditLog, TransactionPhoto, Category, Account, Project, Valuation, CostCenter, ProjectShareLink
 from accounts.models import Profile
 from accounts.decorators import viewer_restricted
 from .amounts import create_initial_balance_transaction
 from .audit import log_transaction_audit
-from .forms import TransactionForm, CategoryForm, AccountForm, ProjectForm, ValuationForm
+from .forms import TransactionForm, TransactionPhotosForm, CategoryForm, AccountForm, ProjectForm, ValuationForm
+from .photos import crear_fotos, eliminar_fotos, max_fotos
 from CashFlow.debug import debug_event, first_form_error
 from BCV.services.bcv_scrapper import as_dashboard_rates, get_rate_for_date
 
@@ -1170,6 +1172,23 @@ def _safe_next_url(request, default):
         return next_url
     return default
 
+def _transacciones_accesibles(user, org):
+    """Transacciones que un usuario puede ver/editar desde la organización activa:
+    las de la propia organización más las de proyectos (propios o compartidos con
+    ella) a los que el usuario tiene acceso individual.
+
+    Punto único de control del alcance por organización: cualquier vista nueva que
+    toque transacciones debe pasar por aquí.
+    """
+    projects_with_access = Project.objects.filter(
+        models.Q(organization=org) | models.Q(shared_organizations__organization=org),
+        user_accesses__user=user,
+    )
+    return Transaction.objects.filter(
+        models.Q(organization=org) | models.Q(project__in=projects_with_access)
+    ).distinct()
+
+
 @login_required
 @viewer_restricted
 def guardar_transaccion(request, trans_id=None):
@@ -1183,17 +1202,9 @@ def guardar_transaccion(request, trans_id=None):
         # Si es edición, buscamos la transacción original.
         # Se permite si el usuario tiene acceso a la organización de la transacción
         # O si la transacción pertenece a un proyecto al que la organización actual tiene acceso.
-        projects_with_access = Project.objects.filter(
-            models.Q(organization=org) | models.Q(shared_organizations__organization=org),
-            user_accesses__user=request.user
+        transaction_to_edit = get_object_or_404(
+            _transacciones_accesibles(request.user, org), id=trans_id
         )
-        
-        transactions_with_access = Transaction.objects.filter(
-            models.Q(organization=org) |
-            models.Q(project__in=projects_with_access)
-        ).distinct()
-        
-        transaction_to_edit = get_object_or_404(transactions_with_access, id=trans_id)
         instance = transaction_to_edit
     
     redirect_to = _safe_next_url(request, 'lista_transacciones')
@@ -1229,35 +1240,69 @@ def guardar_transaccion(request, trans_id=None):
                 return redirect(redirect_to)
 
         form = TransactionForm(request.POST, instance=instance, organization=org, project=project_context)
-        if form.is_valid():
+        fotos_form = TransactionPhotosForm(data=request.POST, files=request.FILES, transaction=instance)
+
+        # Se evalúan AMBOS antes de escribir nada: un error en las fotos no debe
+        # dejar la transacción guardada a medias, ni al revés.
+        form_ok = form.is_valid()
+        fotos_ok = fotos_form.is_valid()
+
+        if form_ok and fotos_ok:
             is_update = bool(instance)
-            transaction = form.save()
-            log_transaction_audit(
-                transaction,
-                transaction.organization,
-                TransactionAuditLog.ACTION_UPDATED if is_update else TransactionAuditLog.ACTION_CREATED,
-                request.user,
-            )
-            debug_event(
-                "transaccion.guardada",
-                user_id=request.user.id,
-                org_id=org.id,
-                transaction_id=transaction.id,
-                account_id=transaction.account_id,
-                amount_bs=transaction.amount_bs,
-                amount_usd=transaction.amount_usd,
-                is_update=is_update,
-            )
-            messages.success(request, "Transacción guardada correctamente.")
+            try:
+                # atomic() explícito: ATOMIC_REQUESTS solo está activo en los tests
+                # (conftest.py), no en desarrollo ni producción.
+                with db_transaction.atomic():
+                    transaction = form.save()
+                    fotos_eliminadas = eliminar_fotos(transaction, fotos_form.ids_a_eliminar)
+                    fotos_agregadas = crear_fotos(transaction, fotos_form.nuevas, request.user)
+                    # Re-verificación dentro de la transacción: cierra la carrera de
+                    # doble envío (select_for_update no sirve, es no-op en SQLite).
+                    if transaction.photos.count() > max_fotos():
+                        raise ValidationError(
+                            "Solo puede adjuntar hasta %d fotos por transacción." % max_fotos()
+                        )
+                    log_transaction_audit(
+                        transaction,
+                        transaction.organization,
+                        TransactionAuditLog.ACTION_UPDATED if is_update else TransactionAuditLog.ACTION_CREATED,
+                        request.user,
+                    )
+            except ValidationError as exc:
+                debug_event(
+                    "transaccion.fotos.error",
+                    user_id=request.user.id,
+                    org_id=org.id,
+                    trans_id=trans_id,
+                    errors=exc.messages,
+                )
+                messages.error(request, f"Error al guardar la transacción: {exc.messages[0]}")
+            else:
+                debug_event(
+                    "transaccion.guardada",
+                    user_id=request.user.id,
+                    org_id=org.id,
+                    transaction_id=transaction.id,
+                    account_id=transaction.account_id,
+                    amount_bs=transaction.amount_bs,
+                    amount_usd=transaction.amount_usd,
+                    is_update=is_update,
+                    fotos_agregadas=len(fotos_agregadas),
+                    fotos_eliminadas=fotos_eliminadas,
+                )
+                messages.success(request, "Transacción guardada correctamente.")
         else:
+            errores = form.errors.get_json_data() if not form_ok else fotos_form.errors.get_json_data()
             debug_event(
                 "transaccion.guardar.error",
                 user_id=request.user.id,
                 org_id=org.id,
                 trans_id=trans_id,
-                errors=form.errors.get_json_data(),
+                errors=errores,
             )
-            messages.error(request, f"Error al guardar la transacción: {first_form_error(form)}")
+            detalle = first_form_error(form) if not form_ok else first_form_error(fotos_form)
+            aviso = " Las fotos seleccionadas deben volver a adjuntarse." if fotos_form.nuevas else ""
+            messages.error(request, f"Error al guardar la transacción: {detalle}{aviso}")
 
     return redirect(redirect_to)
 
@@ -1271,17 +1316,9 @@ def eliminar_transaccion(request, trans_id):
     org = get_object_or_404(Organization, id=org_id)
     
     # Verificar acceso: Directo a la org O via proyecto compartido
-    projects_with_access = Project.objects.filter(
-        models.Q(organization=org) | models.Q(shared_organizations__organization=org),
-        user_accesses__user=request.user
+    transaction = get_object_or_404(
+        _transacciones_accesibles(request.user, org), id=trans_id
     )
-    
-    transactions_with_access = Transaction.objects.filter(
-        models.Q(organization=org) |
-        models.Q(project__in=projects_with_access)
-    ).distinct()
-    
-    transaction = get_object_or_404(transactions_with_access, id=trans_id)
 
     next_url = request.GET.get('next')
     redirect_to = next_url if next_url and url_has_allowed_host_and_scheme(
@@ -1304,17 +1341,9 @@ def detalle_transaccion(request, trans_id):
     org = get_object_or_404(Organization, id=org_id)
     
     # Verificar acceso: Directo a la org O via proyecto compartido
-    projects_with_access = Project.objects.filter(
-        models.Q(organization=org) | models.Q(shared_organizations__organization=org),
-        user_accesses__user=request.user
+    transaction = get_object_or_404(
+        _transacciones_accesibles(request.user, org).prefetch_related('photos'), id=trans_id
     )
-    
-    transactions_with_access = Transaction.objects.filter(
-        models.Q(organization=org) |
-        models.Q(project__in=projects_with_access)
-    ).distinct()
-    
-    transaction = get_object_or_404(transactions_with_access, id=trans_id)
 
     created_log = transaction.audit_logs.filter(action=TransactionAuditLog.ACTION_CREATED).order_by('timestamp').first()
     last_updated_log = transaction.audit_logs.filter(action=TransactionAuditLog.ACTION_UPDATED).order_by('-timestamp').first()
@@ -1324,6 +1353,78 @@ def detalle_transaccion(request, trans_id):
         'created_log': created_log,
         'last_updated_log': last_updated_log,
     })
+
+# --- Fotos de transacciones ---
+
+def _foto_accesible(request, foto_id):
+    """Devuelve la foto solo si el usuario puede ver su transacción desde la
+    organización activa. Lanza Http404 en cualquier otro caso: nunca 403, para no
+    confirmar la existencia de una foto ajena."""
+    org_id = request.session.get('org_id')
+    if not org_id:
+        raise Http404
+    org = get_object_or_404(Organization, id=org_id)
+    foto = get_object_or_404(TransactionPhoto.objects.select_related('transaction'), id=foto_id)
+    if not _transacciones_accesibles(request.user, org).filter(id=foto.transaction_id).exists():
+        debug_event(
+            "transaccion.foto.acceso_denegado",
+            user_id=request.user.id,
+            org_id=org.id,
+            foto_id=foto_id,
+        )
+        raise Http404
+    return foto
+
+
+@login_required
+def ver_foto_transaccion(request, foto_id):
+    """Entrega el archivo de una foto. Único camino de acceso a los bytes: no hay
+    ninguna URL pública sirviendo MEDIA_ROOT."""
+    foto = _foto_accesible(request, foto_id)
+    # Content-Type fijo, nunca el declarado en la subida: junto con la
+    # recodificación en Pillow evita el XSS almacenado vía archivo subido.
+    response = FileResponse(foto.image.open('rb'), content_type='image/jpeg')
+    response['Content-Disposition'] = f'inline; filename="foto-{foto.id}.jpg"'
+    response['Cache-Control'] = 'private, max-age=3600'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+@login_required
+def listar_fotos_transaccion(request, trans_id):
+    """Fragmento HTML con las fotos ya guardadas. Lo consume el modal de edición,
+    porque editTransaction() recibe argumentos posicionales y no puede transportar
+    una lista de longitud variable."""
+    org_id = request.session.get('org_id')
+    if not org_id:
+        raise Http404
+    org = get_object_or_404(Organization, id=org_id)
+    transaction = get_object_or_404(
+        _transacciones_accesibles(request.user, org).prefetch_related('photos'), id=trans_id
+    )
+    return render(request, 'organizations/partials/fotos_transaccion.html', {
+        'transaction': transaction,
+        'fotos': transaction.photos.all(),
+    })
+
+
+@login_required
+@viewer_restricted
+def eliminar_foto_transaccion(request, foto_id):
+    """Elimina una foto de inmediato (sin pasar por el guardado de la transacción)."""
+    if request.method != 'POST':
+        raise Http404
+    foto = _foto_accesible(request, foto_id)
+    transaction_id = foto.transaction_id
+    foto.delete()
+    debug_event(
+        "transaccion.foto.eliminada",
+        user_id=request.user.id,
+        foto_id=foto_id,
+        transaction_id=transaction_id,
+    )
+    return JsonResponse({'ok': True})
+
 
 # --- Categorías ---
 

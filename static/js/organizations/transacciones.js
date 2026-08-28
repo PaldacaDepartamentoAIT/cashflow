@@ -70,6 +70,7 @@ function initTransacciones(config) {
         const form = document.getElementById('transactionForm');
         if (!form) return;
         form.reset();
+        if (window.CFFotos) CFFotos.reset();
         
         const categoriesSelect = form.querySelector('[name="categories"]');
         if (categoriesSelect && categoriesSelect.rebuildCustomDropdown) {
@@ -136,6 +137,8 @@ function initTransacciones(config) {
         if (!form) return;
         form.action = '/transacciones/guardar/' + id + '/';
         document.getElementById('modalTitle').innerText = 'Editar Transacción';
+
+        if (window.CFFotos) { CFFotos.reset(); CFFotos.cargarExistentes(id); }
 
         const nextFieldEdit = form.querySelector('[name="next"]');
         if (nextFieldEdit) nextFieldEdit.value = window.location.pathname + window.location.search;
@@ -889,6 +892,11 @@ function initTransacciones(config) {
 
         if (form) {
             form.addEventListener('submit', function (e) {
+                if (window.CFFotos) {
+                    const errFotos = CFFotos.validarAntesDeEnviar();
+                    if (errFotos) { e.preventDefault(); alert(errFotos); return; }
+                }
+
                 const accId = accountSelect ? accountSelect.value : '';
                 const accCurrency = (accId && config.accountsData) ? config.accountsData[accId] : 'BS';
                 const isReal = accCurrency === 'USD';

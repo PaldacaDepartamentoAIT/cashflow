@@ -488,3 +488,485 @@ def test_no_hay_comentarios_django_multilinea():
         'Comentarios {# #} multilínea: Django los renderiza como texto visible. '
         'Deben caber en una sola línea. Encontrados en: ' + ', '.join(ofensores)
     )
+
+
+# --- Fotos adjuntas de transacciones ---
+
+
+def _imagen_subida(nombre='foto.jpg', size=(60, 40), fmt='JPEG', color='red'):
+    """Archivo de imagen válido en memoria, listo para subir."""
+    import io
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new('RGB', size, color).save(buf, fmt)
+    tipos = {'JPEG': 'image/jpeg', 'PNG': 'image/png', 'WEBP': 'image/webp'}
+    return SimpleUploadedFile(nombre, buf.getvalue(), content_type=tipos[fmt])
+
+
+def _org_con_cuenta(client, sufijo, media_root):
+    """Usuario editor con organización activa y una cuenta en Bs."""
+    user = User.objects.create_user(username=f'fotos_{sufijo}', password='password')
+    org = Organization.objects.create(name=f'Org Fotos {sufijo}')
+    OrganizationAccess.objects.create(user=user, organization=org)
+    cuenta = Account.objects.create(
+        organization=org, currency=Account.CURRENCY_BS, name='Cuenta Fotos'
+    )
+    client.force_login(user)
+    session = client.session
+    session['org_id'] = org.id
+    session.save()
+    return user, org, cuenta
+
+
+def _datos_transaccion(org, cuenta, **extra):
+    datos = {
+        'date': '2026-01-15',
+        'organization': org.id,
+        'account': cuenta.id,
+        'description': 'Compra con comprobante',
+        'status': 'completado',
+        'amount_bs': '100.00',
+        'amount_usd': '0',
+        'daily_rate': '36.5000',
+        'bank_fee_bs': '0',
+        'bank_fee_usd': '0',
+        'bank_fee_real_usd': '0',
+    }
+    datos.update(extra)
+    return datos
+
+
+def _crear_transaccion_con_fotos(client, org, cuenta, n_fotos):
+    from .models import TransactionPhoto
+
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(
+            org, cuenta,
+            photos=[_imagen_subida(f'f{i}.jpg') for i in range(n_fotos)],
+        ),
+        follow=True,
+    )
+    tx = Transaction.objects.get(organization=org)
+    assert tx.photos.count() == n_fotos, TransactionPhoto.objects.count()
+    return tx
+
+
+@pytest.mark.django_db
+def test_subir_fotos_crea_registros_y_archivos(client, tmp_path, settings):
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'crear', tmp_path)
+
+    tx = _crear_transaccion_con_fotos(client, org, cuenta, 2)
+
+    import os
+    for foto in tx.photos.all():
+        assert foto.size_bytes > 0
+        assert foto.width > 0 and foto.height > 0
+        assert os.path.exists(os.path.join(str(tmp_path), foto.image.name))
+
+
+@pytest.mark.django_db
+def test_toda_foto_guardada_pesa_menos_del_objetivo(client, tmp_path, settings):
+    """El requisito central: nada superior al objetivo llega al almacenamiento."""
+    import random
+
+    from PIL import Image
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'peso', tmp_path)
+
+    # Ruido puro a alta resolución: el peor caso posible para JPEG.
+    rnd = random.Random(0)
+    grande = Image.new('RGB', (1800, 1400))
+    grande.putdata([
+        (rnd.randrange(256), rnd.randrange(256), rnd.randrange(256))
+        for _ in range(1800 * 1400)
+    ])
+    import io
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    buf = io.BytesIO()
+    grande.save(buf, 'JPEG', quality=95)
+    pesada = SimpleUploadedFile('pesada.jpg', buf.getvalue(), content_type='image/jpeg')
+    assert pesada.size > settings.TRANSACTION_PHOTO_TARGET_BYTES
+
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(org, cuenta, photos=[pesada]),
+        follow=True,
+    )
+
+    foto = Transaction.objects.get(organization=org).photos.get()
+    assert foto.size_bytes <= settings.TRANSACTION_PHOTO_TARGET_BYTES
+    assert foto.image.size <= settings.TRANSACTION_PHOTO_TARGET_BYTES
+
+
+@pytest.mark.django_db
+def test_rechaza_la_foto_que_supera_el_tope(client, tmp_path, settings):
+    settings.MEDIA_ROOT = str(tmp_path)
+    settings.TRANSACTION_PHOTOS_MAX = 3
+    _, org, cuenta = _org_con_cuenta(client, 'tope', tmp_path)
+
+    tx = _crear_transaccion_con_fotos(client, org, cuenta, 3)
+
+    response = client.post(
+        reverse('editar_transaccion', args=[tx.id]),
+        _datos_transaccion(org, cuenta, description='Editada', photos=[_imagen_subida('extra.jpg')]),
+        follow=True,
+    )
+    assert response.status_code == 200
+    tx.refresh_from_db()
+    assert tx.photos.count() == 3
+    # La transacción tampoco debe haberse modificado.
+    assert tx.description == 'Compra con comprobante'
+
+
+@pytest.mark.django_db
+def test_el_tope_considera_las_eliminaciones(client, tmp_path, settings):
+    settings.MEDIA_ROOT = str(tmp_path)
+    settings.TRANSACTION_PHOTOS_MAX = 3
+    _, org, cuenta = _org_con_cuenta(client, 'canje', tmp_path)
+
+    tx = _crear_transaccion_con_fotos(client, org, cuenta, 3)
+    a_borrar = list(tx.photos.values_list('id', flat=True))[:2]
+
+    client.post(
+        reverse('editar_transaccion', args=[tx.id]),
+        _datos_transaccion(
+            org, cuenta,
+            delete_photo_ids=a_borrar,
+            photos=[_imagen_subida('n1.jpg'), _imagen_subida('n2.jpg')],
+        ),
+        follow=True,
+    )
+
+    tx.refresh_from_db()
+    assert tx.photos.count() == 3
+    assert not tx.photos.filter(id__in=a_borrar).exists()
+
+
+@pytest.mark.django_db
+def test_rechaza_archivo_que_no_es_imagen(client, tmp_path, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from .models import TransactionPhoto
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'noimg', tmp_path)
+
+    falsa = SimpleUploadedFile('virus.jpg', b'esto no es una imagen', content_type='image/jpeg')
+    response = client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(org, cuenta, photos=[falsa]),
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    # Atomicidad: ni la transacción ni las fotos deben existir.
+    assert not Transaction.objects.filter(organization=org).exists()
+    assert TransactionPhoto.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_rechaza_archivo_demasiado_grande(client, tmp_path, settings):
+    from .models import TransactionPhoto
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    settings.TRANSACTION_PHOTO_MAX_UPLOAD_BYTES = 100  # 100 bytes
+    _, org, cuenta = _org_con_cuenta(client, 'grande', tmp_path)
+
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(org, cuenta, photos=[_imagen_subida('g.jpg', size=(400, 400))]),
+        follow=True,
+    )
+
+    assert not Transaction.objects.filter(organization=org).exists()
+    assert TransactionPhoto.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_eliminar_foto_borra_el_archivo_del_disco(client, tmp_path, settings, django_capture_on_commit_callbacks):
+    import os
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'borrar', tmp_path)
+
+    tx = _crear_transaccion_con_fotos(client, org, cuenta, 1)
+    foto = tx.photos.get()
+    ruta = os.path.join(str(tmp_path), foto.image.name)
+    assert os.path.exists(ruta)
+
+    # on_commit no corre dentro de la transacción envolvente del test.
+    with django_capture_on_commit_callbacks(execute=True):
+        client.post(reverse('eliminar_foto_transaccion', args=[foto.id]))
+
+    assert not tx.photos.exists()
+    assert not os.path.exists(ruta)
+
+
+@pytest.mark.django_db
+def test_eliminar_transaccion_borra_fotos_y_archivos(client, tmp_path, settings, django_capture_on_commit_callbacks):
+    import os
+
+    from .models import TransactionPhoto
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'cascada', tmp_path)
+
+    tx = _crear_transaccion_con_fotos(client, org, cuenta, 2)
+    rutas = [os.path.join(str(tmp_path), f.image.name) for f in tx.photos.all()]
+
+    with django_capture_on_commit_callbacks(execute=True):
+        client.post(reverse('eliminar_transaccion', args=[tx.id]), follow=True)
+
+    assert not Transaction.objects.filter(id=tx.id).exists()
+    assert TransactionPhoto.objects.count() == 0
+    for ruta in rutas:
+        assert not os.path.exists(ruta)
+
+
+@pytest.mark.django_db
+def test_no_se_pueden_eliminar_fotos_de_otra_transaccion(client, tmp_path, settings):
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'ajena', tmp_path)
+
+    tx_a = _crear_transaccion_con_fotos(client, org, cuenta, 1)
+    foto_ajena = tx_a.photos.get()
+
+    tx_b = Transaction.objects.create(
+        date=date(2026, 1, 20), organization=org, account=cuenta,
+        description='Otra', amount_bs=Decimal('50'), amount_usd=Decimal('0'),
+        daily_rate=Decimal('36.5'),
+    )
+
+    client.post(
+        reverse('editar_transaccion', args=[tx_b.id]),
+        _datos_transaccion(org, cuenta, description='Otra', delete_photo_ids=[foto_ajena.id]),
+        follow=True,
+    )
+
+    # La foto ajena sigue intacta.
+    tx_a.refresh_from_db()
+    assert tx_a.photos.filter(id=foto_ajena.id).exists()
+
+
+@pytest.mark.django_db
+def test_ver_foto_respeta_el_alcance_de_organizacion(client, tmp_path, settings):
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org_a, cuenta_a = _org_con_cuenta(client, 'orga', tmp_path)
+    tx = _crear_transaccion_con_fotos(client, org_a, cuenta_a, 1)
+    foto = tx.photos.get()
+
+    # El dueño la ve.
+    assert client.get(reverse('ver_foto_transaccion', args=[foto.id])).status_code == 200
+
+    # Un usuario de otra organización recibe 404, no 403.
+    intruso = User.objects.create_user(username='intruso', password='password')
+    org_b = Organization.objects.create(name='Org Intrusa')
+    OrganizationAccess.objects.create(user=intruso, organization=org_b)
+    otro = Client()
+    otro.force_login(intruso)
+    sesion = otro.session
+    sesion['org_id'] = org_b.id
+    sesion.save()
+
+    assert otro.get(reverse('ver_foto_transaccion', args=[foto.id])).status_code == 404
+
+
+@pytest.mark.django_db
+def test_ver_foto_sin_login_redirige(client, tmp_path, settings):
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'anon', tmp_path)
+    tx = _crear_transaccion_con_fotos(client, org, cuenta, 1)
+    foto = tx.photos.get()
+
+    anonimo = Client()
+    response = anonimo.get(reverse('ver_foto_transaccion', args=[foto.id]))
+    assert response.status_code == 302
+    assert '/login' in response.url or 'login' in response.url
+
+
+@pytest.mark.django_db
+def test_viewer_no_puede_subir_fotos(client, tmp_path, settings):
+    from .models import TransactionPhoto
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    user, org, cuenta = _org_con_cuenta(client, 'viewer', tmp_path)
+    user.profile.edit = 'viewer'
+    user.profile.save()
+
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(org, cuenta, photos=[_imagen_subida()]),
+        follow=True,
+    )
+
+    assert not Transaction.objects.filter(organization=org).exists()
+    assert TransactionPhoto.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_formulario_invalido_no_guarda_fotos(client, tmp_path, settings):
+    from .models import TransactionPhoto
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'invalido', tmp_path)
+
+    # description es obligatoria: el formulario no valida.
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(org, cuenta, description='', photos=[_imagen_subida()]),
+        follow=True,
+    )
+
+    assert not Transaction.objects.filter(organization=org).exists()
+    assert TransactionPhoto.objects.count() == 0
+    # Sin archivos huérfanos en el almacenamiento.
+    assert not list(tmp_path.rglob('*.jpg'))
+
+
+@pytest.mark.django_db
+def test_listar_fotos_devuelve_el_partial(client, tmp_path, settings):
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'listar', tmp_path)
+    tx = _crear_transaccion_con_fotos(client, org, cuenta, 2)
+
+    response = client.get(reverse('listar_fotos_transaccion', args=[tx.id]))
+    assert response.status_code == 200
+    contenido = response.content.decode()
+    for foto in tx.photos.all():
+        assert f'data-foto-id="{foto.id}"' in contenido
+
+
+def test_modales_de_transaccion_tienen_enctype():
+    """El modal #transactionForm está duplicado en tres plantillas.
+
+    Sin enctype="multipart/form-data" el navegador no envía los archivos y
+    request.FILES llega vacío sin ningún error visible: las fotos simplemente
+    desaparecen. Este test evita que se olvide en alguna de las tres copias.
+    """
+    from pathlib import Path
+
+    base = Path(__file__).resolve().parent.parent / 'templates' / 'organizations'
+    plantillas = ['transacciones.html', 'detalle_cuenta.html', 'detalle_proyecto.html']
+
+    sin_enctype = []
+    sin_loading = []
+    for nombre in plantillas:
+        contenido = (base / nombre).read_text(encoding='utf-8')
+        for linea in contenido.splitlines():
+            if 'id="transactionForm"' not in linea:
+                continue
+            if 'multipart/form-data' not in linea:
+                sin_enctype.append(nombre)
+            # Recomprimir las fotos tarda: sin estado de carga el usuario cree
+            # que no pasó nada y vuelve a pulsar Guardar.
+            if 'data-cf-loading' not in linea:
+                sin_loading.append(nombre)
+
+    assert not sin_enctype, f"Falta enctype multipart en: {', '.join(sin_enctype)}"
+    assert not sin_loading, f"Falta data-cf-loading en: {', '.join(sin_loading)}"
+
+
+def test_el_visor_de_fotos_se_dibuja_sobre_los_demas_modales():
+    """#photoModal se abre encima del modal de detalle o del de edición.
+
+    Todos los .cf-modal comparten z-index 2000, así que sin una regla explícita
+    ganaría el que aparezca después en el DOM y la foto quedaría por detrás.
+    """
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parent.parent
+           / 'static' / 'css' / 'base' / 'photos.css').read_text(encoding='utf-8')
+
+    bloque = re.search(r'#photoModal\s*\{([^}]*)\}', css)
+    assert bloque, "photos.css no define una regla para #photoModal"
+
+    z = re.search(r'z-index:\s*(\d+)', bloque.group(1))
+    assert z, "#photoModal no fija z-index"
+    assert int(z.group(1)) > 2000, f"z-index {z.group(1)} no supera el de .cf-modal (2000)"
+
+
+def _heic_subido(nombre='IMG_0001.HEIC', size=(1600, 1200), content_type='image/heic'):
+    """HEIC real, como el que sube un iPhone con la cámara en 'Alta eficiencia'."""
+    import io
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    buf = io.BytesIO()
+    Image.new('RGB', size, 'darkgreen').save(buf, format='HEIF', quality=90)
+    return SimpleUploadedFile(nombre, buf.getvalue(), content_type=content_type)
+
+
+@pytest.mark.django_db
+def test_acepta_heic_y_lo_convierte_a_jpg(client, tmp_path, settings):
+    """Los iPhone graban HEIC: debe aceptarse y quedar guardado como JPEG."""
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'heic', tmp_path)
+
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(org, cuenta, photos=[_heic_subido()]),
+        follow=True,
+    )
+
+    tx = Transaction.objects.get(organization=org)
+    foto = tx.photos.get()
+
+    assert foto.original_filename == 'IMG_0001.HEIC'
+    assert foto.image.name.endswith('.jpg')
+    assert foto.size_bytes <= settings.TRANSACTION_PHOTO_TARGET_BYTES
+
+    # El archivo en disco es realmente un JPEG, no un HEIC renombrado.
+    from PIL import Image
+    with foto.image.open('rb') as fh:
+        assert Image.open(fh).format == 'JPEG'
+
+
+@pytest.mark.django_db
+def test_acepta_heic_con_content_type_generico(client, tmp_path, settings):
+    """Algunos navegadores envían application/octet-stream para HEIC: la
+    comprobación real es Pillow, no la cabecera declarada por el cliente."""
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'heicgen', tmp_path)
+
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(
+            org, cuenta,
+            photos=[_heic_subido(content_type='application/octet-stream')],
+        ),
+        follow=True,
+    )
+
+    assert Transaction.objects.get(organization=org).photos.count() == 1
+
+
+@pytest.mark.django_db
+def test_sigue_rechazando_un_no_imagen_con_extension_heic(client, tmp_path, settings):
+    """Ampliar los formatos no debe abrir la puerta a archivos arbitrarios."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from .models import TransactionPhoto
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    _, org, cuenta = _org_con_cuenta(client, 'falsoheic', tmp_path)
+
+    falso = SimpleUploadedFile('falso.heic', b'no soy un HEIC', content_type='image/heic')
+    client.post(
+        reverse('crear_transaccion'),
+        _datos_transaccion(org, cuenta, photos=[falso]),
+        follow=True,
+    )
+
+    assert not Transaction.objects.filter(organization=org).exists()
+    assert TransactionPhoto.objects.count() == 0
