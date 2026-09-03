@@ -337,9 +337,15 @@ def home_organizacion(request):
 
 @login_required
 def configuracion(request):
-    if not request.session.get('org_id'):
+    org_id = request.session.get('org_id')
+    if not org_id:
         return redirect('dashboard')
-    return render(request, 'organizations/configuracion.html')
+
+    org = get_object_or_404(Organization, id=org_id)
+    return render(request, 'organizations/configuracion.html', {
+        'categories': Category.objects.filter(organization=org).order_by('name'),
+        'category_form': CategoryForm(),
+    })
 
 @login_required
 def salir_organizacion(request):
@@ -1428,6 +1434,20 @@ def eliminar_foto_transaccion(request, foto_id):
 
 # --- Categorías ---
 
+#: Pantallas desde las que se pueden administrar categorías. El destino que llega
+#: en el POST se valida contra esta lista blanca: nunca se redirige a una URL
+#: arbitraria enviada por el cliente.
+CATEGORY_RETURN_VIEWS = ('lista_categorias', 'configuracion')
+
+
+def categoria_redirect(request):
+    """Devuelve al usuario a la pantalla desde la que envió el formulario."""
+    destino = request.POST.get('next')
+    if destino in CATEGORY_RETURN_VIEWS:
+        return redirect(destino)
+    return redirect('lista_categorias')
+
+
 @login_required
 def lista_categorias(request):
     org_id = request.session.get('org_id')
@@ -1465,7 +1485,7 @@ def guardar_categoria(request, cat_id=None):
         else:
             messages.error(request, f"Error al guardar la categoría: {first_form_error(form)}")
             
-    return redirect('lista_categorias')
+    return categoria_redirect(request)
 
 @login_required
 @viewer_restricted
@@ -1481,7 +1501,7 @@ def eliminar_categoria(request, cat_id):
         category.delete()
         messages.success(request, "Categoría eliminada.")
     
-    return redirect('lista_categorias')
+    return categoria_redirect(request)
 
 # --- Cuentas ---
 
