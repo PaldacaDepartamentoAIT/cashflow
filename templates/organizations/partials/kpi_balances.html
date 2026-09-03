@@ -13,6 +13,7 @@
                 <span class="cf-kpi-row__label">BCV</span>
                 <div class="cf-kpi-row__amounts">
                     <div class="cf-kpi-row__value currency-usd-content">${{ totals.balance_usd|intcomma }}</div>
+                    <small class="cf-kpi-row__sub currency-usd-content">Bs. {{ totals.balance_bs|intcomma }}</small>
                     <div class="cf-kpi-row__value currency-bs-content cf-hidden">Bs. {{ totals.balance_bs|intcomma }}</div>
                     {% if has_pending %}
                     <small class="cf-kpi-row__pending currency-usd-content">Pendiente: ${{ totals.pending_balance_usd|intcomma }}</small>
@@ -63,6 +64,7 @@
                 <span class="cf-kpi-row__label">BCV</span>
                 <div class="cf-kpi-row__amounts">
                     <div class="cf-kpi-row__value cf-text-success currency-usd-content">${{ totals.income_usd|intcomma }}</div>
+                    <small class="cf-kpi-row__sub currency-usd-content">Bs. {{ totals.income_bs|intcomma }}</small>
                     <div class="cf-kpi-row__value cf-text-success currency-bs-content cf-hidden">Bs. {{ totals.income_bs|intcomma }}</div>
                     {% if totals.pending_income_usd or totals.pending_income_bs %}
                     <small class="cf-kpi-row__pending currency-usd-content">Pendiente: ${{ totals.pending_income_usd|intcomma }}</small>
@@ -113,6 +115,7 @@
                 <span class="cf-kpi-row__label">BCV</span>
                 <div class="cf-kpi-row__amounts">
                     <div class="cf-kpi-row__value cf-text-danger currency-usd-content">${{ totals.expense_usd|intcomma }}</div>
+                    <small class="cf-kpi-row__sub currency-usd-content">Bs. {{ totals.expense_bs|intcomma }}</small>
                     <div class="cf-kpi-row__value cf-text-danger currency-bs-content cf-hidden">Bs. {{ totals.expense_bs|intcomma }}</div>
                     {% if totals.pending_expense_usd or totals.pending_expense_bs %}
                     <small class="cf-kpi-row__pending currency-usd-content">Pendiente: ${{ totals.pending_expense_usd|intcomma }}</small>

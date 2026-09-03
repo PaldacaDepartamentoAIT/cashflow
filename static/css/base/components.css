@@ -482,6 +482,35 @@
     gap: 1rem;
 }
 
+/* --- Formulario de transacción (alta y edición) ---------------------------
+   El formulario vive en tres plantillas (transacciones, detalle de cuenta y
+   detalle de proyecto), por eso las reglas van aquí y no en un CSS de página.
+
+   1) Altura común de los controles. En este formulario los <select> y los
+      <textarea> llevan la clase .cf-input, así que se seleccionan por elemento.
+      <select> e <input type="date"> tienen métricas internas propias de cada
+      navegador y no quedan a la misma altura solo con el padding: se fija una
+      altura, igual que ya hace .cf-filter-form. Los <textarea> se excluyen
+      porque deben crecer con su contenido. */
+#transactionForm .cf-form-row input.cf-input,
+#transactionForm .cf-form-row select.cf-input,
+#transactionForm .cf-form-row .cf-select {
+    height: 42px;
+    box-sizing: border-box;
+}
+
+/* 2) Altura común de la cabecera de cada campo. La etiqueta de "Monto" lleva un
+      botón y la de "Tasa del día" un interruptor, más altos que una etiqueta de
+      solo texto; sin igualarlas, esos campos empiezan más abajo que el de la
+      otra columna y las dos columnas dejan de coincidir. */
+#transactionForm .cf-form-row > .cf-form-group > .cf-label,
+#transactionForm .cf-form-row > .cf-form-group > .cf-flex:first-child {
+    display: flex;
+    align-items: center;
+    min-height: 1.5rem;
+    margin-bottom: 0.4rem;
+}
+
 @media (max-width: 640px) {
     .cf-form-row { grid-template-columns: 1fr; }
 }
@@ -958,6 +987,14 @@
     font-weight: 700;
 }
 
+/* Equivalente en bolívares bajo un saldo BCV en dólares. */
+.cf-stat-sub {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
 .cf-stat-value--lg {
     font-size: 2rem;
 }
@@ -1137,6 +1174,10 @@
     justify-content: space-between;
     gap: 0.5rem;
     margin-bottom: 1rem;
+    /* La tarjeta oscura solo lleva icono y título; las otras dos llevan un
+       .cf-icon-box de 40px. Sin esta altura mínima la cabecera de la primera
+       es más baja y sus importes arrancan más arriba que los de las demás. */
+    min-height: 40px;
 }
 
 .cf-kpi-card__header h5 {
@@ -1172,6 +1213,10 @@
     gap: 1rem;
     padding: 0.7rem 0.15rem;
     min-width: 0;
+    /* Todas las filas ocupan la misma altura, tengan o no línea de conversión
+       o de pendiente. Como las tres tarjetas comparten alto y número de filas,
+       los importes quedan alineados horizontalmente entre tarjetas. */
+    flex: 1 1 0;
 }
 
 .cf-kpi-row + .cf-kpi-row {
@@ -1201,6 +1246,19 @@
     font-size: 1.5rem;
     font-weight: 700;
     line-height: 1.15;
+    white-space: nowrap;
+}
+
+/* Conversión a bolívares bajo el monto BCV en dólares. Usa opacidad, no un
+   color fijo, porque la misma fila aparece sobre la tarjeta oscura y sobre las
+   claras. */
+.cf-kpi-row__sub {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: 2px;
+    opacity: 0.75;
     white-space: nowrap;
 }
 

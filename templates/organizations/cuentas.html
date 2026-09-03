@@ -53,6 +53,7 @@
                 <div class="cf-stat-value currency-bs-content cf-hidden">{{ acc.balance_bs|default:0|intcomma }} <span class="cf-fs-sm cf-text-muted">Bs.</span></div>
                 {% else %}
                 <div class="cf-stat-value currency-usd-content">{{ acc.balance_usd|default:0|intcomma }} <span class="cf-fs-sm cf-text-muted">$</span></div>
+                <div class="cf-stat-sub currency-usd-content">{{ acc.balance_bs|default:0|intcomma }} Bs.</div>
                 <div class="cf-stat-value currency-bs-content cf-hidden">{{ acc.balance_bs|default:0|intcomma }} <span class="cf-fs-sm cf-text-muted">Bs.</span></div>
                 {% endif %}
                 </div>
