@@ -5,6 +5,7 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('home/', views.home_organizacion, name='home_organizacion'),
     path('configuracion/', views.configuracion, name='configuracion'),
+    path('configuracion/categorias/', views.configuracion_categorias, name='configuracion_categorias'),
     path('nueva/', views.crear_organizacion, name='crear_organizacion'),
     path('seleccionar/<int:org_id>/', views.seleccionar_organizacion, name='seleccionar_organizacion'),
     path('salir/', views.salir_organizacion, name='salir_organizacion'),

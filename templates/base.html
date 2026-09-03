@@ -77,7 +77,7 @@
                 <i class="fa-solid fa-table-columns app-sidebar-icon" aria-hidden="true"></i>
                 <span class="app-sidebar-label">Proyectos</span>
             </a>
-            <a href="{% url 'configuracion' %}" class="app-sidebar-link{% if current_url == 'configuracion' %} is-active{% endif %}">
+            <a href="{% url 'configuracion' %}" class="app-sidebar-link{% if current_url == 'configuracion' or current_url == 'configuracion_categorias' %} is-active{% endif %}">
                 <i class="fa-solid fa-gear app-sidebar-icon" aria-hidden="true"></i>
                 <span class="app-sidebar-label">Configuración</span>
             </a>

@@ -1,0 +1,160 @@
+/* Pantalla de administración de categorías (sección Configuración). */
+
+.cat-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.cat-list__item {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-card);
+}
+
+.cat-list__item + .cat-list__item {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.cat-list__item:hover {
+    background-color: var(--bg-muted);
+}
+
+.cat-list__swatch {
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default);
+}
+
+.cat-list__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.cat-list__name {
+    font-weight: 600;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cat-list__desc {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cat-list__hex {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    color: var(--text-subtle);
+    background-color: var(--bg-muted);
+    border-radius: var(--radius-sm);
+    padding: 0.15rem 0.45rem;
+}
+
+.cat-list__actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.cat-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-subtle);
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius-md);
+}
+
+.cat-empty i {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+/* Selector de color del modal */
+
+.cat-color {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.cat-color__row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* El widget de Django trae estilos en línea; hay que ganarles en especificidad. */
+.cat-color__row input[type="color"] {
+    width: 3.25rem !important;
+    height: 2.75rem !important;
+    padding: 0.2rem !important;
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.cat-color__hex {
+    max-width: 9rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-transform: lowercase;
+}
+
+.cat-color__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.cat-preset {
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.cat-preset:hover {
+    transform: scale(1.12);
+}
+
+.cat-preset.is-active {
+    border-color: var(--text-main);
+}
+
+@media (max-width: 640px) {
+    .cat-list__item {
+        flex-wrap: wrap;
+    }
+
+    .cat-list__hex {
+        display: none;
+    }
+
+    .cat-list__actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    /* Los botones quedan solo con icono; el texto sigue en su atributo title. */
+    .cat-list__btn-label {
+        display: none;
+    }
+}

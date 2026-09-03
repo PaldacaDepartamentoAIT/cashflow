@@ -343,6 +343,19 @@ def configuracion(request):
 
     org = get_object_or_404(Organization, id=org_id)
     return render(request, 'organizations/configuracion.html', {
+        'categories_count': Category.objects.filter(organization=org).count(),
+    })
+
+
+@login_required
+def configuracion_categorias(request):
+    """Pantalla dedicada a categorías dentro de la sección de Configuración."""
+    org_id = request.session.get('org_id')
+    if not org_id:
+        return redirect('dashboard')
+
+    org = get_object_or_404(Organization, id=org_id)
+    return render(request, 'organizations/configuracion_categorias.html', {
         'categories': Category.objects.filter(organization=org).order_by('name'),
         'category_form': CategoryForm(),
     })
@@ -1437,7 +1450,7 @@ def eliminar_foto_transaccion(request, foto_id):
 #: Pantallas desde las que se pueden administrar categorías. El destino que llega
 #: en el POST se valida contra esta lista blanca: nunca se redirige a una URL
 #: arbitraria enviada por el cliente.
-CATEGORY_RETURN_VIEWS = ('lista_categorias', 'configuracion')
+CATEGORY_RETURN_VIEWS = ('lista_categorias', 'configuracion', 'configuracion_categorias')
 
 
 def categoria_redirect(request):

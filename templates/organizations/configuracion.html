@@ -80,63 +80,23 @@
             </div>
         </div>
     </div>
-</div>
 
-<div class="cf-card cf-mt-4">
-    <div class="cf-card__body cf-p-5">
-        <div class="cat-manager__head cf-mb-4">
-            <div>
-                <h5 class="cf-card__title cf-mb-2">
-                    <i class="fa-solid fa-tags cf-text-primary cf-me-2"></i>Categorías
-                </h5>
-                <p class="cf-text-muted cf-fs-sm cf-mb-0">
-                    Crea, edita o elimina las categorías de <strong>{{ request.session.org_name }}</strong> y asígnales un color.
-                </p>
-            </div>
-            {% if not user_is_viewer %}
-            <button type="button" class="cf-btn cf-btn--primary" id="cat-new-btn">
-                <i class="fa-solid fa-plus cf-me-1"></i> Nueva categoría
-            </button>
-            {% endif %}
+    <div class="cf-card cf-h-100">
+        <div class="cf-card__body cf-p-5">
+            <h5 class="cf-card__title cf-mb-4">
+                <i class="fa-solid fa-tags cf-text-primary cf-me-2"></i>Categorías
+            </h5>
+            <p class="cf-text-muted cf-fs-sm cf-mb-4">
+                Crea, edita o elimina las categorías de <strong>{{ request.session.org_name }}</strong>
+                y asígnales un color.
+            </p>
+            <a href="{% url 'configuracion_categorias' %}" class="cf-option config-card__action">
+                <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+                <span class="cf-fw-bold cf-flex-1">Administrar categorías</span>
+                <span class="config-card__count">{{ categories_count }}</span>
+                <i class="fa-solid fa-chevron-right config-card__chevron" aria-hidden="true"></i>
+            </a>
         </div>
-
-        {% if categories %}
-        <ul class="cat-list">
-            {% for cat in categories %}
-            <li class="cat-list__item">
-                <span class="cat-list__swatch" style="background-color: {{ cat.color }};" aria-hidden="true"></span>
-                <div class="cat-list__info">
-                    <span class="cat-list__name">{{ cat.name }}</span>
-                    <span class="cat-list__desc">{{ cat.description|default:"Sin descripción" }}</span>
-                </div>
-                <code class="cat-list__hex">{{ cat.color }}</code>
-                {% if not user_is_viewer %}
-                <div class="cat-list__actions">
-                    <button type="button" class="cf-btn cf-btn--sm cf-btn--outline js-cat-edit"
-                            data-id="{{ cat.id }}"
-                            data-name="{{ cat.name }}"
-                            data-description="{{ cat.description|default:'' }}"
-                            data-color="{{ cat.color }}"
-                            title="Editar categoría">
-                        <i class="fa-solid fa-pencil"></i><span class="cat-list__btn-label"> Editar</span>
-                    </button>
-                    <button type="button" class="cf-btn cf-btn--sm cf-btn--outline-danger js-cat-delete"
-                            data-id="{{ cat.id }}"
-                            data-name="{{ cat.name }}"
-                            title="Eliminar categoría">
-                        <i class="fa-solid fa-trash"></i><span class="cat-list__btn-label"> Eliminar</span>
-                    </button>
-                </div>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <div class="cat-empty">
-            <i class="fa-solid fa-tag"></i>
-            <p class="cf-mb-0">Aún no hay categorías en esta organización.</p>
-        </div>
-        {% endif %}
     </div>
 </div>
 
@@ -148,74 +108,6 @@
     {% endif %}
 </div>
 
-{% if not user_is_viewer %}
-<div class="cf-modal" id="catModal" tabindex="-1" aria-hidden="true">
-    <div class="cf-modal__backdrop"></div>
-    <div class="cf-modal__dialog">
-        <div class="cf-modal__header cf-modal__header--primary">
-            <h5 class="cf-modal__title" id="catModalTitle">Nueva Categoría</h5>
-            <button type="button" class="cf-modal__close" data-cf-dismiss="modal">&times;</button>
-        </div>
-        <form id="catForm" method="post" action="{% url 'crear_categoria' %}">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="configuracion">
-            <div class="cf-modal__body">
-                <div class="cf-form-group">
-                    <label class="cf-label" for="{{ category_form.name.id_for_label }}">Nombre</label>
-                    {{ category_form.name }}
-                </div>
-                <div class="cf-form-group">
-                    <label class="cf-label" for="{{ category_form.color.id_for_label }}">Color</label>
-                    <div class="cat-color">
-                        <div class="cat-color__row">
-                            {{ category_form.color }}
-                            <input type="text" class="cf-input cat-color__hex" id="cat-color-hex"
-                                   maxlength="7" spellcheck="false" autocomplete="off" placeholder="#000000"
-                                   aria-label="Código hexadecimal del color">
-                        </div>
-                        <div class="cat-color__presets" id="cat-color-presets"></div>
-                        <p class="cf-text-muted cf-fs-sm cf-mb-0">
-                            Haz clic en el recuadro para abrir el selector de color, escribe el hexadecimal o elige uno sugerido.
-                        </p>
-                    </div>
-                </div>
-                <div class="cf-form-group cf-mb-0">
-                    <label class="cf-label" for="{{ category_form.description.id_for_label }}">Descripción</label>
-                    {{ category_form.description }}
-                </div>
-            </div>
-            <div class="cf-modal__footer">
-                <button type="button" class="cf-btn cf-btn--secondary" data-cf-dismiss="modal">Cerrar</button>
-                <button type="submit" class="cf-btn cf-btn--primary">Guardar</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div class="cf-modal" id="catDeleteModal" tabindex="-1" aria-hidden="true">
-    <div class="cf-modal__backdrop"></div>
-    <div class="cf-modal__dialog">
-        <div class="cf-modal__header cf-modal__header--danger">
-            <h5 class="cf-modal__title">Confirmar eliminación</h5>
-            <button type="button" class="cf-modal__close" data-cf-dismiss="modal">&times;</button>
-        </div>
-        <div class="cf-modal__body">
-            <p class="cf-mb-0">
-                ¿Seguro que deseas eliminar la categoría <strong id="catDeleteName"></strong>?
-                Las transacciones asociadas quedarán sin esta categoría.
-            </p>
-        </div>
-        <div class="cf-modal__footer">
-            <form id="catDeleteForm" method="post" action="">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="configuracion">
-                <button type="button" class="cf-btn cf-btn--secondary" data-cf-dismiss="modal">Cancelar</button>
-                <button type="submit" class="cf-btn cf-btn--danger">Eliminar</button>
-            </form>
-        </div>
-    </div>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -308,14 +200,6 @@
                 window.location.href = "{% url 'home_organizacion' %}";
             }, 800);
         });
-    });
-</script>
-<script src="{% static 'js/organizations/configuracion-categorias.js' %}"></script>
-<script>
-    initConfiguracionCategorias({
-        crearUrl: "{% url 'crear_categoria' %}",
-        editarUrlTpl: "{% url 'editar_categoria' 0 %}",
-        eliminarUrlTpl: "{% url 'eliminar_categoria' 0 %}"
     });
 </script>
 {% endblock %}
