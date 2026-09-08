@@ -87,3 +87,31 @@ def test_las_columnas_no_bcv_no_llevan_conversion(escenario):
     # En el listado de cuentas, la tarjeta de la cuenta en dólares no la lleva.
     html_cuentas = c.get(reverse('lista_cuentas')).content.decode()
     assert len(_sub_bcv(html_cuentas)) == 1   # solo la cuenta en bolívares
+
+
+@pytest.mark.django_db
+def test_el_monto_en_bs_es_la_suma_de_la_columna_no_una_reconversion(escenario):
+    """El importe en bolívares del KPI BCV suma la columna `amount_bs`, que se
+    grabó con la tasa del día de cada transacción. NO reconvierte el total en
+    dólares a la tasa de hoy: si lo hiciera, dos movimientos registrados a
+    tasas distintas darían un número muy distinto al de la suma."""
+    c, org, cuenta, proyecto = escenario
+    Transaction.objects.all().delete()
+
+    # 100 $ a tasa 10 y 100 $ a tasa 60: 200 $ en total, pero 7.000 Bs.
+    Transaction.objects.create(
+        date=date(2026, 1, 10), organization=org, account=cuenta, description='t1',
+        amount_bs=1000, amount_usd=100, daily_rate=10, project=proyecto,
+        status='completado')
+    Transaction.objects.create(
+        date=date(2026, 6, 10), organization=org, account=cuenta, description='t2',
+        amount_bs=6000, amount_usd=100, daily_rate=60, project=proyecto,
+        status='completado')
+
+    html = c.get(reverse('lista_transacciones')).content.decode()
+    assert '$200,00' in html          # suma de la columna en dólares
+    assert 'Bs. 7.000,00' in html     # suma de la columna en bolívares (1.000 + 6.000)
+
+    # Una reconversión de los 200 $ a una única tasa daría cualquier otra cifra.
+    tasa_implicita = 7000 / 200
+    assert tasa_implicita == 35, 'la cifra en Bs. no es la suma de la columna'

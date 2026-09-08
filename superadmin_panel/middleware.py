@@ -7,6 +7,9 @@ class SuperuserPanelMiddleware:
     ALLOWED_PATH_PREFIXES = (
         '/superadmin/',
         '/accounts/logout/',
+        # Un superusuario con sesion abierta tambien debe poder abrir su enlace
+        # de restablecimiento sin que lo reboten al panel.
+        '/accounts/password-reset/',
         '/admin/',
     )
 

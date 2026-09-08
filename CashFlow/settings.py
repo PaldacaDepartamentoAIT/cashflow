@@ -183,11 +183,45 @@ LOGOUT_REDIRECT_URL = 'login'
 LOGIN_URL = 'login'
 
 # -----------------------------------------------------------------------------
+# Correo saliente (SMTP autenticado: MXroute)
+# -----------------------------------------------------------------------------
+# No hace falta un proveedor tipo SendGrid/Mailgun: basta un buzon SMTP propio.
+# MXroute usa la direccion completa como EMAIL_HOST_USER (p. ej. no-reply@dominio.com),
+# puerto 587 con STARTTLS o 465 con SSL. En un VPS suele estar bloqueado el 25, no el
+# 587/465. El dominio necesita SPF y DKIM de MXroute publicados en DNS.
+# En desarrollo se imprime por consola salvo que se defina EMAIL_BACKEND.
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend' if IS_DEVELOPMENT
+    else 'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+# Django los trata como mutuamente excluyentes (lanza ValueError si ambos son
+# True). Como EMAIL_USE_TLS viene activado por defecto, basta poner
+# EMAIL_USE_SSL=1 para el puerto 465: aqui se desactiva el TLS solo.
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', '0').lower() in ('1', 'true', 'yes')
+EMAIL_USE_TLS = (
+    False if EMAIL_USE_SSL
+    else os.environ.get('EMAIL_USE_TLS', '1').lower() in ('1', 'true', 'yes')
+)
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@localhost')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Validez del enlace de restablecimiento de contrasena, en segundos (1 hora).
+PASSWORD_RESET_TIMEOUT = int(os.environ.get('PASSWORD_RESET_TIMEOUT', '3600'))
+
+# Maximo de solicitudes de restablecimiento por sesion dentro de la ventana.
+PASSWORD_RESET_MAX_INTENTOS = int(os.environ.get('PASSWORD_RESET_MAX_INTENTOS', '5'))
+PASSWORD_RESET_VENTANA_SEGUNDOS = int(os.environ.get('PASSWORD_RESET_VENTANA_SEGUNDOS', '3600'))
+
+# -----------------------------------------------------------------------------
 # Desarrollo
 # -----------------------------------------------------------------------------
 if IS_DEVELOPMENT:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
     # Cookies menos estrictas en local (HTTP)
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False

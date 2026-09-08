@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, SetPasswordForm
 
 class LoginForm(AuthenticationForm):
     username = forms.CharField(label="Nombre de usuario", widget=forms.TextInput(attrs={'class': 'cf-input', 'placeholder': 'usuario123'}))
@@ -31,3 +31,31 @@ class RegistroForm(UserCreationForm):
         if commit:
             user.save()
         return user
+
+
+class SolicitarResetForm(forms.Form):
+    """Primer paso del restablecimiento: el usuario escribe su nombre de usuario."""
+
+    username = forms.CharField(
+        label="Nombre de usuario",
+        max_length=150,
+        widget=forms.TextInput(attrs={
+            'class': 'cf-input',
+            'placeholder': 'usuario123',
+            'autofocus': True,
+            'autocomplete': 'username',
+        }),
+    )
+
+    def clean_username(self):
+        # La busqueda del usuario vive en la vista; aqui solo normalizamos.
+        return self.cleaned_data['username'].strip()
+
+
+class NuevaPasswordForm(SetPasswordForm):
+    """Segundo paso: define la nueva contrasena desde el enlace del correo."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields:
+            self.fields[field].widget.attrs.update({'class': 'cf-input', 'placeholder': '********'})

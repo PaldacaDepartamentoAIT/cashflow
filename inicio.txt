@@ -29,6 +29,26 @@ En Coolify: además del volumen media_data en docker-compose.yml, declararlo en 
 
 Los archivos NO están en el dump de la base de datos: el respaldo debe cubrir el volumen.
 
+--- Correo saliente (recuperación de contraseña) ---
+Los ajustes EMAIL_* / DEFAULT_FROM_EMAIL / PASSWORD_RESET_* viven en CashFlow/settings.py,
+que es merge=ours: NO se propagan al hacer merge entre ramas. Replicarlos a mano en cada
+rama que despliegue, igual que MEDIA_ROOT/TRANSACTION_PHOTO_*.
+
+SMTP de MXroute (no hace falta SendGrid/Mailgun). Variables en Coolify o .env:
+  EMAIL_HOST=<servidor>.mxrouting.net
+  EMAIL_PORT=587  EMAIL_USE_TLS=1  EMAIL_USE_SSL=0
+  (alternativa 465: EMAIL_PORT=465 y EMAIL_USE_SSL=1; el TLS se desactiva solo)
+  EMAIL_HOST_USER=no-reply@dominio.com   (dirección completa)
+  EMAIL_HOST_PASSWORD=<clave del buzón>
+  DEFAULT_FROM_EMAIL=no-reply@dominio.com
+
+El dominio necesita SPF y DKIM de MXroute en DNS o los correos caen en spam.
+Los enlaces del correo se arman con build_absolute_uri: si ALLOWED_HOSTS/CSRF_TRUSTED_ORIGINS
+no incluyen el dominio real, salen enlaces rotos.
+
+Prueba manual:
+  python manage.py shell -c "from django.core.mail import send_mail; send_mail('prueba','ok',None,['tu@correo.com'])"
+
 --- Producción (Namecheap / LiteSpeed + Passenger) ---
 Variables de entorno en cPanel o .env del servidor:
   DJANGO_ENV=production
