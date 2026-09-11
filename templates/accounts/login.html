@@ -18,6 +18,14 @@
 
         <form method="post">
             {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="cf-alert cf-alert--error auth-form-error" role="alert">
+                <i class="fa-solid fa-circle-exclamation cf-me-1"></i>
+                {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            </div>
+            {% endif %}
+
             {% for field in form %}
             <div class="cf-form-group">
                 <label for="{{ field.id_for_label }}" class="cf-label">{{ field.label }}</label>

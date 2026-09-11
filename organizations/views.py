@@ -18,6 +18,7 @@ from decimal import Decimal
 from .models import Organization, OrganizationAccess, Transaction, TransactionAuditLog, TransactionPhoto, Category, Account, Project, Valuation, CostCenter, ProjectShareLink
 from accounts.models import Profile
 from accounts.decorators import viewer_restricted
+from .decorators import requiere_cuenta
 from .amounts import create_initial_balance_transaction
 from .audit import log_transaction_audit
 from .forms import TransactionForm, TransactionPhotosForm, CategoryForm, AccountForm, ProjectForm, ValuationForm
@@ -396,6 +397,7 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib import colors
 
 @login_required
+@requiere_cuenta
 def lista_transacciones(request):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -774,6 +776,7 @@ def _get_report_data(request):
     return org, transactions, report_type, report_totals, filter_label
 
 @login_required
+@requiere_cuenta
 def exportar_pdf_transacciones(request):
     org, transactions, report_type, report_totals, filter_label = _get_report_data(request)
     now = timezone.now()
@@ -1006,6 +1009,7 @@ def exportar_pdf_transacciones(request):
 
 
 @login_required
+@requiere_cuenta
 def exportar_xlsx_transacciones(request):
     org, transactions, report_type, report_totals, filter_label = _get_report_data(request)
     now = timezone.now()
@@ -1210,6 +1214,7 @@ def _transacciones_accesibles(user, org):
 
 @login_required
 @viewer_restricted
+@requiere_cuenta
 def guardar_transaccion(request, trans_id=None):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -1327,6 +1332,7 @@ def guardar_transaccion(request, trans_id=None):
 
 @login_required
 @viewer_restricted
+@requiere_cuenta
 def eliminar_transaccion(request, trans_id):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -1352,6 +1358,7 @@ def eliminar_transaccion(request, trans_id):
     return redirect(redirect_to)
 
 @login_required
+@requiere_cuenta
 def detalle_transaccion(request, trans_id):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -1410,6 +1417,7 @@ def ver_foto_transaccion(request, foto_id):
 
 
 @login_required
+@requiere_cuenta
 def listar_fotos_transaccion(request, trans_id):
     """Fragmento HTML con las fotos ya guardadas. Lo consume el modal de edición,
     porque editTransaction() recibe argumentos posicionales y no puede transportar
@@ -1429,6 +1437,7 @@ def listar_fotos_transaccion(request, trans_id):
 
 @login_required
 @viewer_restricted
+@requiere_cuenta
 def eliminar_foto_transaccion(request, foto_id):
     """Elimina una foto de inmediato (sin pasar por el guardado de la transacción)."""
     if request.method != 'POST':
@@ -1806,6 +1815,7 @@ def detalle_cuenta(request, acc_id):
 # --- Proyectos ---
 
 @login_required
+@requiere_cuenta
 def lista_proyectos(request):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -1845,6 +1855,7 @@ def lista_proyectos(request):
 
 @login_required
 @viewer_restricted
+@requiere_cuenta
 def guardar_proyecto(request, proj_id=None):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -1877,6 +1888,7 @@ def guardar_proyecto(request, proj_id=None):
 
 @login_required
 @viewer_restricted
+@requiere_cuenta
 def eliminar_proyecto(request, proj_id):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -1893,6 +1905,7 @@ def eliminar_proyecto(request, proj_id):
     return redirect('lista_proyectos')
 
 @login_required
+@requiere_cuenta
 def detalle_proyecto(request, proj_id):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -2157,6 +2170,7 @@ def _get_project_for_share(request, proj_id):
 
 
 @login_required
+@requiere_cuenta
 def compartir_proyecto(request, proj_id):
     """Genera un enlace público firmado (sin necesidad de login) con información
     de solo lectura del proyecto, previa verificación de una contraseña compartida.
@@ -2204,6 +2218,7 @@ def compartir_proyecto(request, proj_id):
 
 
 @login_required
+@requiere_cuenta
 def listar_enlaces_compartidos(request):
     """Verifica la contraseña compartida y, si es correcta, devuelve TODOS los
     enlaces públicos generados para los proyectos a los que el usuario tiene
@@ -2236,6 +2251,7 @@ def listar_enlaces_compartidos(request):
 
 
 @login_required
+@requiere_cuenta
 def eliminar_enlace_compartido(request, link_id):
     """Elimina (revoca) un enlace público de proyecto previamente generado.
     Permitido para cualquier proyecto al que el usuario tenga acceso individual,
@@ -2487,6 +2503,7 @@ def proyecto_publico(request, token):
 
 @login_required
 @viewer_restricted
+@requiere_cuenta
 def guardar_valuacion(request, proj_id, val_id=None):
     org_id = request.session.get('org_id')
     if not org_id:
@@ -2520,6 +2537,7 @@ def guardar_valuacion(request, proj_id, val_id=None):
 
 @login_required
 @viewer_restricted
+@requiere_cuenta
 def eliminar_valuacion(request, val_id):
     org_id = request.session.get('org_id')
     if not org_id:

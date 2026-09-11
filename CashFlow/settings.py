@@ -95,6 +95,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'superadmin_panel.context_processors.superadmin_panel',
                 'accounts.context_processors.user_permissions',
+                'organizations.context_processors.estado_cuentas',
             ],
         },
     },

@@ -40,3 +40,8 @@
 .auth-register-link a {
     font-weight: 600;
 }
+
+/* Credenciales incorrectas: es un non_field_error, va arriba del formulario. */
+.auth-card .auth-form-error {
+    margin-bottom: 1rem;
+}

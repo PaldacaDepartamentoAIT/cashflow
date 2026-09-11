@@ -6,6 +6,14 @@ class LoginForm(AuthenticationForm):
     username = forms.CharField(label="Nombre de usuario", widget=forms.TextInput(attrs={'class': 'cf-input', 'placeholder': 'usuario123'}))
     password = forms.CharField(label="Contraseña", widget=forms.PasswordInput(attrs={'class': 'cf-input', 'placeholder': '********'}))
 
+    # Van como non_field_errors: la plantilla debe renderizarlos aparte de los
+    # errores de campo. El texto de Django es mas rigido y suena a traduccion.
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        'invalid_login': "Usuario o contraseña incorrectos. Verifica los datos e inténtalo de nuevo.",
+        'inactive': "Esta cuenta está desactivada. Contacta al administrador.",
+    }
+
 class RegistroForm(UserCreationForm):
     first_name = forms.CharField(max_length=30, required=True, label="Nombre", widget=forms.TextInput(attrs={'class': 'cf-input', 'placeholder': 'Tu nombre'}))
     last_name = forms.CharField(max_length=30, required=True, label="Apellido", widget=forms.TextInput(attrs={'class': 'cf-input', 'placeholder': 'Tu apellido'}))

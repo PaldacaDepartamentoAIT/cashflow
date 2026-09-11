@@ -270,3 +270,42 @@
         margin-right: 0.5rem;
     }
 }
+
+/* Secciones bloqueadas mientras la organización no tenga ninguna cuenta.
+   El enlace sigue siendo pulsable a propósito: al pulsarlo la vista redirige a
+   "Mis Cuentas" con el aviso de que hay que abrir una cuenta primero. */
+.app-sidebar-link.is-locked {
+    opacity: 0.55;
+}
+
+.app-sidebar-link.is-locked:hover {
+    opacity: 0.85;
+}
+
+/* Mismo mecanismo que .app-sidebar-label: oculto mientras la barra está
+   contraída, visible cuando se despliega (hover en escritorio, siempre en el
+   drawer móvil). Así no descentra el icono. */
+.app-sidebar-lock {
+    white-space: nowrap;
+    overflow: hidden;
+    width: 0;
+    opacity: 0;
+    font-size: 0.7rem;
+    transition: opacity 0.2s ease;
+}
+
+@media (min-width: 993px) {
+    .app-sidebar:hover .app-sidebar-lock {
+        width: auto;
+        opacity: 0.85;
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 992px) {
+    .app-sidebar-lock {
+        width: auto;
+        opacity: 0.85;
+        margin-left: auto;
+    }
+}

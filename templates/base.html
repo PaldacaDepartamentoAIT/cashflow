@@ -65,17 +65,21 @@
                 <i class="fa-solid fa-house app-sidebar-icon" aria-hidden="true"></i>
                 <span class="app-sidebar-label">Inicio</span>
             </a>
-            <a href="{% url 'lista_transacciones' %}" class="app-sidebar-link{% if current_url == 'lista_transacciones' or current_url == 'crear_transaccion' or current_url == 'editar_transaccion' or current_url == 'detalle_transaccion' or current_url == 'exportar_pdf_transacciones' %} is-active{% endif %}">
+            {# Sin cuentas la seccion no sirve: el enlace sigue vivo para que al pulsarlo #}
+            {# la vista redirija a Mis Cuentas con el aviso, pero se marca como bloqueada. #}
+            <a href="{% url 'lista_transacciones' %}" class="app-sidebar-link{% if current_url == 'lista_transacciones' or current_url == 'crear_transaccion' or current_url == 'editar_transaccion' or current_url == 'detalle_transaccion' or current_url == 'exportar_pdf_transacciones' %} is-active{% endif %}{% if org_sin_cuentas %} is-locked{% endif %}"{% if org_sin_cuentas %} title="Primero debes abrir una cuenta"{% endif %}>
                 <i class="fa-solid fa-money-bill-wave app-sidebar-icon" aria-hidden="true"></i>
                 <span class="app-sidebar-label">Transacciones</span>
+                {% if org_sin_cuentas %}<i class="fa-solid fa-lock app-sidebar-lock" aria-hidden="true"></i>{% endif %}
             </a>
             <a href="{% url 'lista_cuentas' %}" class="app-sidebar-link{% if current_url == 'lista_cuentas' or current_url == 'detalle_cuenta' or current_url == 'crear_cuenta' or current_url == 'editar_cuenta' %} is-active{% endif %}">
                 <i class="fa-solid fa-wallet app-sidebar-icon" aria-hidden="true"></i>
                 <span class="app-sidebar-label">Mis Cuentas</span>
             </a>
-            <a href="{% url 'lista_proyectos' %}" class="app-sidebar-link{% if current_url == 'lista_proyectos' or current_url == 'detalle_proyecto' or current_url == 'crear_proyecto' or current_url == 'editar_proyecto' %} is-active{% endif %}">
+            <a href="{% url 'lista_proyectos' %}" class="app-sidebar-link{% if current_url == 'lista_proyectos' or current_url == 'detalle_proyecto' or current_url == 'crear_proyecto' or current_url == 'editar_proyecto' %} is-active{% endif %}{% if org_sin_cuentas %} is-locked{% endif %}"{% if org_sin_cuentas %} title="Primero debes abrir una cuenta"{% endif %}>
                 <i class="fa-solid fa-table-columns app-sidebar-icon" aria-hidden="true"></i>
                 <span class="app-sidebar-label">Proyectos</span>
+                {% if org_sin_cuentas %}<i class="fa-solid fa-lock app-sidebar-lock" aria-hidden="true"></i>{% endif %}
             </a>
             <a href="{% url 'configuracion' %}" class="app-sidebar-link{% if current_url == 'configuracion' or current_url == 'configuracion_categorias' %} is-active{% endif %}">
                 <i class="fa-solid fa-gear app-sidebar-icon" aria-hidden="true"></i>
